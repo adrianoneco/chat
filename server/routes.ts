@@ -56,13 +56,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(sessionMiddleware);
 
   // Configure multer for file uploads
-  const uploadsDir = path.join(process.cwd(), 'uploads');
-  await fs.mkdir(uploadsDir, { recursive: true });
-  await fs.mkdir(path.join(uploadsDir, 'images'), { recursive: true });
-  await fs.mkdir(path.join(uploadsDir, 'audio'), { recursive: true });
-  await fs.mkdir(path.join(uploadsDir, 'video'), { recursive: true });
-  await fs.mkdir(path.join(uploadsDir, 'files'), { recursive: true });
-  await fs.mkdir(path.join(uploadsDir, 'profiles'), { recursive: true });
+  const dataDir = path.join(process.cwd(), 'data');
+  await fs.mkdir(dataDir, { recursive: true });
+  await fs.mkdir(path.join(dataDir, 'images'), { recursive: true });
+  await fs.mkdir(path.join(dataDir, 'audio'), { recursive: true });
+  await fs.mkdir(path.join(dataDir, 'video'), { recursive: true });
+  await fs.mkdir(path.join(dataDir, 'files'), { recursive: true });
+  await fs.mkdir(path.join(dataDir, 'profiles'), { recursive: true });
 
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -72,8 +72,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Serve uploaded files
-  app.use('/uploads', (req, res, next) => {
-    express.static(uploadsDir)(req, res, next);
+  app.use('/data', (req, res, next) => {
+    express.static(dataDir)(req, res, next);
   });
 
   // Authentication routes
@@ -394,7 +394,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/conversations', isAuthenticated, async (req, res) => {
     try {
       const userId = req.session.userId!;
-      const conversations = await storage.getConversations(userId);
+      const userRole = req.session.userRole!;
+      
+      // Attendants and admins see all conversations, clients see only their own
+      const filterUserId = (userRole === 'attendant' || userRole === 'admin') ? undefined : userId;
+      const conversations = await storage.getConversations(filterUserId);
       res.json(conversations);
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -562,14 +566,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const fileName = `${userId}.webp`;
-      const filePath = path.join(uploadsDir, 'profiles', fileName);
+      const filePath = path.join(dataDir, 'profiles', fileName);
       
       await sharp(req.file.buffer)
         .resize(400, 400, { fit: 'cover' })
         .webp({ quality: 85 })
         .toFile(filePath);
 
-      const imageUrl = `/uploads/profiles/${fileName}`;
+      const imageUrl = `/data/profiles/${fileName}`;
       await storage.updateUser(userId, { profileImageUrl: imageUrl });
 
       if (wsManager) {
@@ -615,10 +619,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         folder = 'video';
       }
 
-      const filePath = path.join(uploadsDir, folder, fileName);
+      const filePath = path.join(dataDir, folder, fileName);
       await fs.writeFile(filePath, processedBuffer);
 
-      const fileUrl = `/uploads/${folder}/${fileName}`;
+      const fileUrl = `/data/${folder}/${fileName}`;
       const fileSize = processedBuffer.length;
       const mimeType = req.file.mimetype;
 

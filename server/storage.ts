@@ -105,14 +105,16 @@ export class MemStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const existing = this.users.get(userData.id);
+    const id = userData.id || randomUUID();
+    const existing = this.users.get(id);
     const user: User = {
       ...existing,
       ...userData,
+      id,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     } as User;
-    this.users.set(userData.id, user);
+    this.users.set(id, user);
     return user;
   }
 
@@ -135,7 +137,7 @@ export class MemStorage implements IStorage {
     return Promise.all(
       filtered.map(async (conv) => {
         const client = await this.getUser(conv.clientId);
-        const attendant = conv.attendantId ? await this.getUser(conv.attendantId) : null;
+        const attendant = conv.attendantId ? (await this.getUser(conv.attendantId)) || null : null;
         return {
           ...conv,
           client: client!,
@@ -150,7 +152,7 @@ export class MemStorage implements IStorage {
     if (!conv) return undefined;
 
     const client = await this.getUser(conv.clientId);
-    const attendant = conv.attendantId ? await this.getUser(conv.attendantId) : null;
+    const attendant = conv.attendantId ? (await this.getUser(conv.attendantId)) || null : null;
     return {
       ...conv,
       client: client!,
@@ -368,7 +370,7 @@ export class DatabaseStorage implements IStorage {
     return Promise.all(
       convs.map(async (conv) => {
         const client = await this.getUser(conv.clientId);
-        const attendant = conv.attendantId ? await this.getUser(conv.attendantId) : null;
+        const attendant = conv.attendantId ? (await this.getUser(conv.attendantId)) || null : null;
         return {
           ...conv,
           client: client!,
@@ -383,7 +385,7 @@ export class DatabaseStorage implements IStorage {
     if (!conv) return undefined;
 
     const client = await this.getUser(conv.clientId);
-    const attendant = conv.attendantId ? await this.getUser(conv.attendantId) : null;
+    const attendant = conv.attendantId ? (await this.getUser(conv.attendantId)) || null : null;
     return {
       ...conv,
       client: client!,
