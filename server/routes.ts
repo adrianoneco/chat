@@ -427,6 +427,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'pending',
       });
       const conversation = await storage.createConversation(validatedData);
+      const fullConversation = await storage.getConversation(conversation.id);
+      
+      // Send WebSocket notification to conversation participants
+      if (wsManager && fullConversation) {
+        const participantIds = [fullConversation.clientId];
+        if (fullConversation.attendantId) participantIds.push(fullConversation.attendantId);
+        wsManager.notifyNewConversation(fullConversation, participantIds);
+      }
+      
       res.status(201).json(conversation);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -452,6 +461,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.updateConversationStatus(id, status);
+      
+      // Send WebSocket notification to conversation participants
+      if (wsManager) {
+        const fullConversation = await storage.getConversation(id);
+        if (fullConversation) {
+          const participantIds = [fullConversation.clientId];
+          if (fullConversation.attendantId) participantIds.push(fullConversation.attendantId);
+          wsManager.notifyConversationUpdate(fullConversation, participantIds);
+        }
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error updating conversation status:', error);

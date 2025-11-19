@@ -293,7 +293,7 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: string, data: Partial<User>): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() } as any)
       .where(eq(users.id, id))
       .returning();
     return user;
@@ -308,19 +308,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.role, role));
+    return await db.select().from(users).where(eq(users.role, role as any));
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values(userData as any)
       .onConflictDoUpdate({
         target: users.id,
         set: {
           ...userData,
           updatedAt: new Date(),
-        },
+        } as any,
       })
       .returning();
     return user;
@@ -381,7 +381,7 @@ export class DatabaseStorage implements IStorage {
       .values({
         ...insertConv,
         protocolNumber,
-      })
+      } as any)
       .returning();
     return conversation;
   }
@@ -440,7 +440,7 @@ export class DatabaseStorage implements IStorage {
   async createMessage(insertMsg: InsertMessage): Promise<Message> {
     const [message] = await db
       .insert(messages)
-      .values(insertMsg)
+      .values(insertMsg as any)
       .returning();
     
     // Update conversation last message
