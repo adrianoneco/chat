@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { AppLayout } from "@/components/AppLayout";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
@@ -14,8 +15,22 @@ import Attendants from "@/pages/attendants";
 import Contacts from "@/pages/contacts";
 import NotFound from "@/pages/not-found";
 
+function ProtectedRoutes() {
+  return (
+    <AppLayout>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/attendants" component={Attendants} />
+        <Route path="/contacts" component={Contacts} />
+        <Route path="/conversations/:id" component={Home} />
+        <Route component={NotFound} />
+      </Switch>
+    </AppLayout>
+  );
+}
+
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -25,24 +40,20 @@ function Router() {
     );
   }
 
+  const isFullyAuthenticated = isAuthenticated && !!user;
+
   return (
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
-      {!isAuthenticated ? (
+      {isFullyAuthenticated ? (
+        <Route component={ProtectedRoutes} />
+      ) : (
         <>
           <Route path="/" component={Landing} />
           <Route component={Login} />
-        </>
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-          <Route path="/attendants" component={Attendants} />
-          <Route path="/contacts" component={Contacts} />
-          <Route path="/conversations/:id" component={Home} />
-          <Route component={NotFound} />
         </>
       )}
     </Switch>
