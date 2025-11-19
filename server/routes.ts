@@ -21,8 +21,11 @@ import {
   insertMessageSchema,
   insertReactionSchema,
   users,
+  messages,
 } from "@shared/schema";
 import { z } from "zod";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -591,6 +594,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error uploading profile image:', error);
       res.status(500).json({ message: 'Erro ao enviar imagem' });
+    }
+  });
+
+  app.post('/api/messages/:messageId/reprocess-audio', isAuthenticated, async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const message = await storage.getMessage(messageId);
+      
+      if (!message || message.type !== 'audio' || !message.fileMetadata?.url) {
+        return res.status(400).json({ message: 'Mensagem inválida ou não é áudio' });
+      }
+
+      // Read the audio file from disk
+      // Remove leading slash to make it relative
+      const relativePath = message.fileMetadata.url.startsWith('/') 
+        ? message.fileMetadata.url.slice(1) 
+        : message.fileMetadata.url;
+      const audioPath = path.join(process.cwd(), relativePath);
+      
+      // Check if file exists
+      try {
+        await fs.access(audioPath);
+      } catch (error) {
+        return res.status(404).json({ message: 'Arquivo de áudio não encontrado' });
+      }
+      
+      const audioBuffer = await fs.readFile(audioPath);
+
+      let audioMetadata: any = null;
+      
+      try {
+        const metadata = await parseBuffer(audioBuffer, { mimeType: message.fileMetadata.mimeType || 'audio/mpeg' });
+        audioMetadata = {
+          title: metadata.common.title,
+          artist: metadata.common.artist,
+          album: metadata.common.album,
+        };
+
+        // Save album art if present
+        if (metadata.common.picture && metadata.common.picture.length > 0) {
+          const picture = metadata.common.picture[0];
+          const albumArtFileName = `${Date.now()}-albumart.webp`;
+          const albumArtPath = path.join(dataDir, 'images', albumArtFileName);
+          
+          // Convert to webp and save
+          await sharp(picture.data)
+            .resize(300, 300, { fit: 'cover' })
+            .webp({ quality: 85 })
+            .toFile(albumArtPath);
+          
+          audioMetadata.albumArt = `/data/images/${albumArtFileName}`;
+        }
+      } catch (metadataError) {
+        console.error('Error extracting audio metadata:', metadataError);
+      }
+
+      // Update message with new metadata
+      if (audioMetadata && Object.keys(audioMetadata).length > 0) {
+        const updatedFileMetadata = {
+          ...message.fileMetadata,
+          id3: audioMetadata,
+        };
+
+        // Update in storage
+        await db
+          .update(messages)
+          .set({ fileMetadata: updatedFileMetadata })
+          .where(eq(messages.id, messageId));
+
+        // Notify via WebSocket
+        if (wsManager) {
+          const sender = await storage.getUser(message.senderId);
+          const updatedMessage = {
+            ...message,
+            fileMetadata: updatedFileMetadata,
+            sender: sender!,
+          };
+          
+          const conversation = await storage.getConversation(message.conversationId);
+          if (conversation) {
+            const participantIds = [conversation.clientId];
+            if (conversation.attendantId) participantIds.push(conversation.attendantId);
+            wsManager.notifyNewMessage(message.conversationId, updatedMessage as any, participantIds);
+          }
+        }
+      }
+
+      res.json({ audioMetadata });
+    } catch (error) {
+      console.error('Error reprocessing audio:', error);
+      res.status(500).json({ message: 'Erro ao reprocessar áudio' });
     }
   });
 

@@ -73,6 +73,35 @@ export default function Home() {
     enabled: !!selectedConversationId && isAuthenticated,
   });
 
+  // Reprocess audio files without ID3 tags when conversation is loaded
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+
+    const reprocessAudios = async () => {
+      const audioMessages = messages.filter(
+        m => m.type === 'audio' && m.fileMetadata?.url && !m.fileMetadata?.id3
+      );
+
+      for (const message of audioMessages) {
+        try {
+          const response = await fetch(`/api/messages/${message.id}/reprocess-audio`, {
+            method: 'POST',
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            // Invalidate queries to refresh messages with new metadata
+            queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedConversationId] });
+          }
+        } catch (error) {
+          console.error('Error reprocessing audio:', error);
+        }
+      }
+    };
+
+    reprocessAudios();
+  }, [messages, selectedConversationId]);
+
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
 
   // WebSocket listeners for real-time updates

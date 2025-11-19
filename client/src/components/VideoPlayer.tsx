@@ -173,7 +173,7 @@ export function VideoPlayer({ src, className }: VideoPlayerProps) {
           max={duration || 100}
           step={0.1}
           onValueChange={handleProgressChange}
-          className="mb-3"
+          className="mb-3 [&_[role=slider]]:hidden"
         />
 
         {/* Controls */}
