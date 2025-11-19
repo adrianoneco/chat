@@ -293,3 +293,13 @@ export type Campaign = typeof campaigns.$inferSelect;
 export type CampaignWithCreator = Campaign & {
   creator: User;
 };
+
+// Email report schema
+export const emailReportSchema = z.object({
+  recipientName: z.string().min(1, "Nome é obrigatório"),
+  recipientEmail: z.string().email("Email inválido"),
+  subject: z.string().min(1, "Assunto é obrigatório"),
+  message: z.string().min(1, "Mensagem é obrigatória"),
+});
+
+export type EmailReport = z.infer<typeof emailReportSchema>;
