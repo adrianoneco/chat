@@ -175,7 +175,7 @@ export class WebSocketManager {
   notifyUserUpdate(user: any, targetUserIds: string[]) {
     this.sendToUsers(targetUserIds, {
       type: 'user:update',
-      payload: user
+      payload: { userId: user.id, user }
     });
   }
 
@@ -191,6 +191,8 @@ export class WebSocketManager {
 export let wsManager: WebSocketManager | null = null;
 
 export function initializeWebSocket(server: Server, sessionMiddleware: any) {
+  console.log('[WebSocket] Initializing WebSocket server on path /ws');
   wsManager = new WebSocketManager(server, sessionMiddleware);
+  console.log('[WebSocket] WebSocket server initialized successfully');
   return wsManager;
 }
