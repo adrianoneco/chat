@@ -31,7 +31,7 @@ export default function WebhooksSettings() {
   const [formData, setFormData] = useState({
     name: "",
     url: import.meta.env.VITE_DEFAULT_WEBHOOK_URL || "",
-    authType: "none" as "none" | "bearer" | "jwt",
+    authType: "none" as "none" | "bearer" | "jwt" | "apiKey",
     apiToken: "",
     jwtToken: "",
     headers: [] as WebhookHeader[],
@@ -140,7 +140,7 @@ export default function WebhooksSettings() {
       name: formData.name,
       url: formData.url,
       authType: formData.authType,
-      apiToken: formData.authType === "bearer" ? formData.apiToken : null,
+      apiToken: (formData.authType === "bearer" || formData.authType === "apiKey") ? formData.apiToken : null,
       jwtToken: formData.authType === "jwt" ? formData.jwtToken : null,
       headers,
       events: formData.events,
@@ -303,20 +303,23 @@ export default function WebhooksSettings() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhuma</SelectItem>
-                      <SelectItem value="bearer">Bearer Token (API)</SelectItem>
+                      <SelectItem value="bearer">Bearer Token</SelectItem>
+                      <SelectItem value="apiKey">API Key</SelectItem>
                       <SelectItem value="jwt">JWT Token</SelectItem>
                     </SelectContent>
                   </Select>
 
-                  {formData.authType === "bearer" && (
+                  {(formData.authType === "bearer" || formData.authType === "apiKey") && (
                     <div className="space-y-2">
-                      <Label htmlFor="apiToken">API Token</Label>
+                      <Label htmlFor="apiToken">
+                        {formData.authType === "apiKey" ? "API Key" : "Bearer Token"}
+                      </Label>
                       <div className="flex gap-2">
                         <Input
                           id="apiToken"
                           value={formData.apiToken}
                           onChange={(e) => setFormData({ ...formData, apiToken: e.target.value })}
-                          placeholder="UUID Uppercase"
+                          placeholder={formData.authType === "apiKey" ? "sua-api-key-aqui" : "UUID Uppercase"}
                           data-testid="input-api-token"
                         />
                         <Button

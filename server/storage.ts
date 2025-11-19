@@ -712,7 +712,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWebhook(webhookData: InsertWebhook): Promise<Webhook> {
-    const results = await db.insert(webhooks).values(webhookData).returning();
+    const results = await db.insert(webhooks).values(webhookData as any).returning();
     return results[0];
   }
 

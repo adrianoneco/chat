@@ -192,18 +192,46 @@ export type ReactionWithUser = Reaction & {
 export const webhookEventCategories = {
   conversations: [
     "conversation.created",
+    "conversation.updated",
     "conversation.assigned",
+    "conversation.transferred",
     "conversation.closed",
+    "conversation.reopened",
+    "conversation.deleted",
   ],
   messages: [
     "message.sent",
-    "message.received",
+    "message.created",
     "message.deleted",
+    "message.forwarded",
+  ],
+  reactions: [
+    "reaction.added",
+    "reaction.removed",
   ],
   users: [
     "user.created",
     "user.updated",
     "user.deleted",
+  ],
+  contacts: [
+    "contact.created",
+    "contact.updated",
+    "contact.deleted",
+  ],
+  campaigns: [
+    "campaign.created",
+    "campaign.updated",
+    "campaign.deleted",
+    "campaign.started",
+    "campaign.completed",
+    "campaign.paused",
+  ],
+  attendants: [
+    "attendant.created",
+    "attendant.updated",
+    "attendant.promoted",
+    "attendant.deleted",
   ],
 } as const;
 
@@ -214,7 +242,7 @@ export const webhooks = pgTable("webhooks", {
   url: varchar("url").notNull(),
   apiToken: varchar("api_token"),
   jwtToken: text("jwt_token"),
-  authType: varchar("auth_type").$type<"none" | "bearer" | "jwt">().notNull().default("none"),
+  authType: varchar("auth_type").$type<"none" | "bearer" | "jwt" | "apiKey">().notNull().default("none"),
   headers: jsonb("headers").$type<Record<string, string>>().default({}),
   events: text("events").array().notNull().default([]),
   isActive: varchar("is_active").notNull().default("true"),

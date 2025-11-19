@@ -112,6 +112,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.userRole = user.role;
 
       const { password, resetToken, resetTokenExpiry, ...userWithoutPassword } = user;
+      
+      // Trigger webhook
+      triggerWebhook('user.created', userWithoutPassword);
+      
       res.status(201).json(userWithoutPassword);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -274,6 +278,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const { password: _, resetToken, resetTokenExpiry, ...attendantWithoutPassword } = attendant;
+      
+      // Trigger webhooks
+      triggerWebhook('attendant.created', attendantWithoutPassword);
+      triggerWebhook('user.created', attendantWithoutPassword);
+      
       res.status(201).json(attendantWithoutPassword);
     } catch (error) {
       console.error('Error creating attendant:', error);
@@ -300,6 +309,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { password: _, resetToken, resetTokenExpiry, ...attendantWithoutPassword } = attendant;
+      
+      // Trigger webhooks
+      triggerWebhook('attendant.updated', attendantWithoutPassword);
+      triggerWebhook('user.updated', attendantWithoutPassword);
+      
       res.json(attendantWithoutPassword);
     } catch (error) {
       console.error('Error updating attendant:', error);
@@ -310,7 +324,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/attendants/:id', requireRole('admin'), async (req, res) => {
     try {
       const { id } = req.params;
+      const attendant = await storage.getUser(id);
       await storage.deleteUser(id);
+      
+      // Trigger webhooks
+      if (attendant) {
+        triggerWebhook('attendant.deleted', { id: attendant.id, email: attendant.email });
+        triggerWebhook('user.deleted', { id: attendant.id, email: attendant.email });
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting attendant:', error);
@@ -354,6 +376,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const { password: _, resetToken, resetTokenExpiry, ...clientWithoutPassword } = client;
+      
+      // Trigger webhook
+      triggerWebhook('contact.created', clientWithoutPassword);
+      
       res.status(201).json(clientWithoutPassword);
     } catch (error) {
       console.error('Error creating client:', error);
@@ -380,6 +406,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { password: _, resetToken, resetTokenExpiry, ...clientWithoutPassword } = client;
+      
+      // Trigger webhook
+      triggerWebhook('contact.updated', clientWithoutPassword);
+      
       res.json(clientWithoutPassword);
     } catch (error) {
       console.error('Error updating client:', error);
@@ -390,7 +420,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/clients/:id', requireRole('admin', 'attendant'), async (req, res) => {
     try {
       const { id } = req.params;
+      const client = await storage.getUser(id);
       await storage.deleteUser(id);
+      
+      // Trigger webhook
+      if (client) {
+        triggerWebhook('contact.deleted', { id: client.id, email: client.email });
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting client:', error);
@@ -448,6 +485,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         wsManager.notifyNewConversation(fullConversation, participantIds);
       }
       
+      // Trigger webhook
+      triggerWebhook('conversation.created', fullConversation);
+      
       res.status(201).json(conversation);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -481,6 +521,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const participantIds = [fullConversation.clientId];
           if (fullConversation.attendantId) participantIds.push(fullConversation.attendantId);
           wsManager.notifyConversationUpdate(fullConversation, participantIds);
+          
+          // Trigger webhooks based on status
+          if (status === 'closed') {
+            triggerWebhook('conversation.closed', fullConversation);
+          } else if (status === 'attending') {
+            triggerWebhook('conversation.assigned', fullConversation);
+          } else if (status === 'pending') {
+            triggerWebhook('conversation.reopened', fullConversation);
+          }
+          triggerWebhook('conversation.updated', fullConversation);
         }
       }
       
@@ -527,6 +577,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           wsManager.notifyNewMessage(message.conversationId, messageWithSender, participantIds);
           wsManager.notifyConversationUpdate(conversation, participantIds);
+          
+          // Trigger webhook
+          const eventType = message.forwardedFromId ? 'message.forwarded' : 'message.created';
+          triggerWebhook(eventType, messageWithSender);
+          triggerWebhook('message.sent', messageWithSender);
         }
       }
       
@@ -543,11 +598,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/messages/:id', isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
+      const message = await storage.getMessage(id);
       await storage.updateMessageDeleted(id, true);
       
       // Send WebSocket notification to conversation participants
       if (wsManager) {
-        const message = await storage.getMessage(id);
         if (message) {
           const conversation = await storage.getConversation(message.conversationId);
           if (conversation) {
@@ -556,6 +611,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             wsManager.notifyConversationUpdate(conversation, participantIds);
           }
         }
+      }
+      
+      // Trigger webhook
+      if (message) {
+        triggerWebhook('message.deleted', { id: message.id, conversationId: message.conversationId });
       }
       
       res.json({ success: true });
@@ -568,16 +628,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/conversations/:id', requireRole('admin', 'attendant'), async (req, res) => {
     try {
       const { id } = req.params;
+      const conversation = await storage.getConversation(id);
       await storage.updateConversationDeleted(id, true);
       
       // Send WebSocket notification to conversation participants
       if (wsManager) {
-        const conversation = await storage.getConversation(id);
         if (conversation) {
           const participantIds = [conversation.clientId];
           if (conversation.attendantId) participantIds.push(conversation.attendantId);
           wsManager.notifyConversationUpdate(conversation, participantIds);
         }
+      }
+      
+      // Trigger webhook
+      if (conversation) {
+        triggerWebhook('conversation.deleted', { id: conversation.id });
       }
       
       res.json({ success: true });
@@ -602,6 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Atendente inválido' });
       }
       
+      const oldConversation = await storage.getConversation(id);
       await storage.updateConversationAttendant(id, attendantId);
       
       // Send WebSocket notification to conversation participants
@@ -613,6 +679,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             participantIds.push(conversation.attendantId);
           }
           wsManager.notifyConversationUpdate(conversation, participantIds);
+          
+          // Trigger webhook
+          triggerWebhook('conversation.transferred', {
+            conversation,
+            oldAttendantId: oldConversation?.attendantId,
+            newAttendantId: attendantId,
+          });
+          triggerWebhook('conversation.updated', conversation);
         }
       }
       
@@ -886,6 +960,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        // Trigger webhook
+        triggerWebhook('reaction.removed', { messageId: validatedData.messageId, emoji: existing.emoji, userId });
+        
         return res.json({ success: true, removed: true });
       }
       
@@ -906,6 +983,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
+      
+      // Trigger webhook
+      triggerWebhook('reaction.added', reaction);
       
       res.status(201).json(reaction);
     } catch (error) {
@@ -1073,7 +1153,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Allow both admins and attendants to create webhooks
   app.post('/api/webhooks', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
     try {
-      const webhook = await storage.createWebhook(req.body);
+      const webhookData = {
+        ...req.body,
+        url: req.body.url || process.env.DEFAULT_WEBHOOK_URL || '',
+      };
+      const webhook = await storage.createWebhook(webhookData);
       res.json(webhook);
     } catch (error) {
       console.error('Error creating webhook:', error);
@@ -1133,12 +1217,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (webhook.authType === 'bearer' && webhook.apiToken) {
         headers['Authorization'] = `Bearer ${webhook.apiToken}`;
+      } else if (webhook.authType === 'apiKey' && webhook.apiToken) {
+        headers['X-API-Key'] = webhook.apiToken;
       } else if (webhook.authType === 'jwt' && webhook.jwtToken) {
         headers['Authorization'] = `Bearer ${webhook.jwtToken}`;
-      }
-      // If no token provided in webhook record and a GLOBAL_API_KEY exists, use it for bearer auth
-      if (!headers['Authorization'] && process.env.GLOBAL_API_KEY) {
-        headers['Authorization'] = `Bearer ${process.env.GLOBAL_API_KEY}`;
       }
 
       // Log test attempt for debugging
@@ -1188,6 +1270,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Webhook trigger function
+  async function triggerWebhook(eventType: string, data: any) {
+    try {
+      const webhooks = await storage.getWebhooks();
+      const activeWebhooks = webhooks.filter(
+        (wh) => wh.isActive === 'true' && wh.events.includes(eventType)
+      );
+
+      if (activeWebhooks.length === 0) {
+        return;
+      }
+
+      const payload = {
+        event: eventType,
+        timestamp: new Date().toISOString(),
+        data,
+      };
+
+      for (const webhook of activeWebhooks) {
+        try {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            ...(webhook.headers || {}),
+          };
+
+          if (webhook.authType === 'bearer' && webhook.apiToken) {
+            headers['Authorization'] = `Bearer ${webhook.apiToken}`;
+          } else if (webhook.authType === 'apiKey' && webhook.apiToken) {
+            headers['X-API-Key'] = webhook.apiToken;
+          } else if (webhook.authType === 'jwt' && webhook.jwtToken) {
+            headers['Authorization'] = `Bearer ${webhook.jwtToken}`;
+          }
+
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+
+          const response = await fetch(webhook.url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeout);
+
+          console.log(`[webhook:trigger] event=${eventType} webhook=${webhook.name} status=${response.status}`);
+        } catch (error: any) {
+          console.error(`[webhook:trigger] event=${eventType} webhook=${webhook.name} error:`, error?.message || error);
+        }
+      }
+    } catch (error) {
+      console.error('[webhook:trigger] error fetching webhooks:', error);
+    }
+  }
+
   // Promote a user to admin (admin-only)
   app.post('/api/users/:id/promote', isAuthenticated, requireRole('admin'), async (req, res) => {
     try {
@@ -1213,6 +1350,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userIds = allUsers.map(u => u.id);
         wsManager.notifyUserUpdate(sanitized, userIds);
       }
+      
+      // Trigger webhooks
+      triggerWebhook('attendant.promoted', sanitized);
+      triggerWebhook('user.updated', sanitized);
 
       res.json({ success: true, user: sanitized });
     } catch (error) {
@@ -1252,6 +1393,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...validatedData,
         createdBy: req.session.userId!,
       });
+      
+      // Trigger webhook
+      triggerWebhook('campaign.created', campaign);
+      
       res.json(campaign);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1269,6 +1414,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!campaign) {
         return res.status(404).json({ message: 'Campanha não encontrada' });
       }
+      
+      // Trigger webhooks based on status changes
+      if (validatedData.status === 'active') {
+        triggerWebhook('campaign.started', campaign);
+      } else if (validatedData.status === 'completed') {
+        triggerWebhook('campaign.completed', campaign);
+      } else if (validatedData.status === 'paused') {
+        triggerWebhook('campaign.paused', campaign);
+      }
+      triggerWebhook('campaign.updated', campaign);
+      
       res.json(campaign);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1281,10 +1437,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/campaigns/:id', isAuthenticated, async (req, res) => {
     try {
+      const campaign = await storage.getCampaignById(req.params.id);
       const success = await storage.deleteCampaign(req.params.id);
       if (!success) {
         return res.status(404).json({ message: 'Campanha não encontrada' });
       }
+      
+      // Trigger webhook
+      if (campaign) {
+        triggerWebhook('campaign.deleted', { id: campaign.id, name: campaign.name });
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting campaign:', error);
