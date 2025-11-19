@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { MessageWithSender, User } from "@shared/schema";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Reply, Forward, Smile, Image as ImageIcon, Video, Mic, FileText } from "lucide-react";
+import { Reply, Forward, Smile, Image as ImageIcon, Video, Mic, FileText, Trash2 } from "lucide-react";
 import { AudioPlayer } from "./AudioPlayer";
 import { VideoPlayer } from "./VideoPlayer";
 
@@ -16,11 +16,12 @@ interface ChatAreaProps {
   onReply?: (message: MessageWithSender) => void;
   onForward?: (message: MessageWithSender) => void;
   onReact?: (message: MessageWithSender, emoji: string) => void;
+  onDelete?: (message: MessageWithSender) => void;
 }
 
 const QUICK_EMOJIS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
 
-export function ChatArea({ messages, currentUser, onReply, onForward, onReact }: ChatAreaProps) {
+export function ChatArea({ messages, currentUser, onReply, onForward, onReact, onDelete }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -257,6 +258,17 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
                           </div>
                         </PopoverContent>
                       </Popover>
+                    )}
+                    {onDelete && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => onDelete(message)}
+                        data-testid={`button-delete-${message.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 )}

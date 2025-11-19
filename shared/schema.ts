@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   index,
   jsonb,
   pgTable,
@@ -86,6 +87,7 @@ export const conversations = pgTable("conversations", {
   clientLocation: text("client_location"),
   lastMessage: text("last_message"),
   lastMessageAt: timestamp("last_message_at"),
+  deleted: boolean("deleted").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   closedAt: timestamp("closed_at"),
@@ -136,6 +138,7 @@ export const messages = pgTable("messages", {
       coverArt?: string;
     };
   }>(),
+  deleted: boolean("deleted").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

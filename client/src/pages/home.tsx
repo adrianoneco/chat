@@ -9,6 +9,7 @@ import { useWebSocketConversation, useWebSocketMessage } from "@/hooks/useWebSoc
 import { Header } from "@/components/Header";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { ConversationList } from "@/components/ConversationList";
+import { ConversationHeader } from "@/components/ConversationHeader";
 import { ChatArea } from "@/components/ChatArea";
 import { MessageInput } from "@/components/MessageInput";
 import { ConversationDetailsSidebar } from "@/components/ConversationDetailsSidebar";
@@ -419,6 +420,108 @@ export default function Home() {
     reactToMessageMutation.mutate({ messageId: message.id, emoji });
   };
 
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      await apiRequest("DELETE", `/api/messages/${messageId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({
+        title: "Mensagem deletada",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao deletar mensagem",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteMessage = (message: MessageWithSender) => {
+    deleteMessageMutation.mutate(message.id);
+  };
+
+  const updateConversationStatusMutation = useMutation({
+    mutationFn: async ({ conversationId, status }: { conversationId: string; status: string }) => {
+      await apiRequest("PATCH", `/api/conversations/${conversationId}/status`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({
+        title: "Status atualizado",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao atualizar status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      await apiRequest("DELETE", `/api/conversations/${conversationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      setSelectedConversationId(undefined);
+      toast({
+        title: "Conversa deletada",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao deletar conversa",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const transferConversationMutation = useMutation({
+    mutationFn: async ({ conversationId, attendantId }: { conversationId: string; attendantId: string }) => {
+      await apiRequest("PATCH", `/api/conversations/${conversationId}/transfer`, { attendantId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({
+        title: "Conversa transferida",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao transferir conversa",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStartConversation = (conversationId: string) => {
+    updateConversationStatusMutation.mutate({ conversationId, status: "attending" });
+  };
+
+  const handleCloseConversation = (conversationId: string) => {
+    updateConversationStatusMutation.mutate({ conversationId, status: "closed" });
+  };
+
+  const handleReopenConversation = (conversationId: string) => {
+    updateConversationStatusMutation.mutate({ conversationId, status: "attending" });
+  };
+
+  const handleDeleteConversation = (conversationId: string) => {
+    deleteConversationMutation.mutate(conversationId);
+  };
+
+  const handleTransferConversation = (conversationId: string) => {
+    // TODO: Show a dialog to select attendant
+    toast({
+      title: "Transferir conversa",
+      description: "Funcionalidade em desenvolvimento",
+    });
+  };
+
   const handleCancelReply = () => {
     setReplyingTo(null);
   };
@@ -470,6 +573,11 @@ export default function Home() {
                 selectedId={selectedConversationId}
                 onSelectConversation={setSelectedConversationId}
                 onNewConversation={handleNewConversation}
+                onStartConversation={handleStartConversation}
+                onCloseConversation={handleCloseConversation}
+                onReopenConversation={handleReopenConversation}
+                onTransferConversation={handleTransferConversation}
+                onDeleteConversation={handleDeleteConversation}
               />
             )}
           </div>
@@ -477,12 +585,24 @@ export default function Home() {
           <div className="flex-1 flex flex-col min-w-0">
             {selectedConversation ? (
               <>
+                <ConversationHeader
+                  conversation={selectedConversation}
+                  onVoiceCall={() => toast({ title: "Chamada de voz", description: "Funcionalidade em desenvolvimento" })}
+                  onVideoCall={() => toast({ title: "Chamada de vídeo", description: "Funcionalidade em desenvolvimento" })}
+                  onScreenShare={() => toast({ title: "Compartilhar tela", description: "Funcionalidade em desenvolvimento" })}
+                  onStartConversation={() => handleStartConversation(selectedConversation.id)}
+                  onCloseConversation={() => handleCloseConversation(selectedConversation.id)}
+                  onReopenConversation={() => handleReopenConversation(selectedConversation.id)}
+                  onTransferConversation={() => handleTransferConversation(selectedConversation.id)}
+                  onDeleteConversation={() => handleDeleteConversation(selectedConversation.id)}
+                />
                 <ChatArea 
                   messages={messages} 
                   currentUser={user}
                   onReply={handleReply}
                   onForward={handleForward}
                   onReact={handleReact}
+                  onDelete={handleDeleteMessage}
                 />
                 <MessageInput
                   onSendMessage={handleSendMessage}

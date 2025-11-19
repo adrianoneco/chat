@@ -40,11 +40,14 @@ export interface IStorage {
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversationStatus(id: string, status: string): Promise<void>;
   updateConversationLastMessage(id: string, message: string): Promise<void>;
+  updateConversationDeleted(id: string, deleted: boolean): Promise<void>;
+  updateConversationAttendant(id: string, attendantId: string): Promise<void>;
 
   // Message operations
   getMessage(id: string): Promise<Message | undefined>;
   getMessages(conversationId: string): Promise<MessageWithSender[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+  updateMessageDeleted(id: string, deleted: boolean): Promise<void>;
 
   // Reaction operations
   getReactionsByMessage(messageId: string): Promise<ReactionWithUser[]>;
@@ -211,6 +214,24 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async updateConversationDeleted(id: string, deleted: boolean): Promise<void> {
+    const conv = this.conversations.get(id);
+    if (conv) {
+      conv.deleted = deleted;
+      conv.updatedAt = new Date();
+      this.conversations.set(id, conv);
+    }
+  }
+
+  async updateConversationAttendant(id: string, attendantId: string): Promise<void> {
+    const conv = this.conversations.get(id);
+    if (conv) {
+      conv.attendantId = attendantId;
+      conv.updatedAt = new Date();
+      this.conversations.set(id, conv);
+    }
+  }
+
   // Message operations
   async getMessage(id: string): Promise<Message | undefined> {
     return this.messages.get(id);
@@ -218,7 +239,7 @@ export class MemStorage implements IStorage {
 
   async getMessages(conversationId: string): Promise<MessageWithSender[]> {
     const msgs = Array.from(this.messages.values()).filter(
-      (m) => m.conversationId === conversationId
+      (m) => m.conversationId === conversationId && !m.deleted
     );
 
     return Promise.all(
@@ -264,6 +285,14 @@ export class MemStorage implements IStorage {
     await this.updateConversationLastMessage(insertMsg.conversationId, insertMsg.content);
     
     return message;
+  }
+
+  async updateMessageDeleted(id: string, deleted: boolean): Promise<void> {
+    const msg = this.messages.get(id);
+    if (msg) {
+      msg.deleted = deleted;
+      this.messages.set(id, msg);
+    }
   }
 
   // Reaction operations
@@ -408,9 +437,14 @@ export class DatabaseStorage implements IStorage {
   async getConversations(userId?: string): Promise<ConversationWithUsers[]> {
     const query = userId
       ? db.select().from(conversations)
-          .where(or(eq(conversations.clientId, userId), eq(conversations.attendantId, userId)))
+          .where(and(
+            or(eq(conversations.clientId, userId), eq(conversations.attendantId, userId)),
+            eq(conversations.deleted, false)
+          ))
           .orderBy(desc(conversations.updatedAt))
-      : db.select().from(conversations).orderBy(desc(conversations.updatedAt));
+      : db.select().from(conversations)
+          .where(eq(conversations.deleted, false))
+          .orderBy(desc(conversations.updatedAt));
 
     const convs = await query;
 
@@ -481,6 +515,26 @@ export class DatabaseStorage implements IStorage {
       .where(eq(conversations.id, id));
   }
 
+  async updateConversationDeleted(id: string, deleted: boolean): Promise<void> {
+    await db
+      .update(conversations)
+      .set({
+        deleted,
+        updatedAt: new Date(),
+      })
+      .where(eq(conversations.id, id));
+  }
+
+  async updateConversationAttendant(id: string, attendantId: string): Promise<void> {
+    await db
+      .update(conversations)
+      .set({
+        attendantId,
+        updatedAt: new Date(),
+      })
+      .where(eq(conversations.id, id));
+  }
+
   // Message operations
   async getMessage(id: string): Promise<Message | undefined> {
     const [message] = await db.select().from(messages).where(eq(messages.id, id));
@@ -491,7 +545,7 @@ export class DatabaseStorage implements IStorage {
     const msgs = await db
       .select()
       .from(messages)
-      .where(eq(messages.conversationId, conversationId))
+      .where(and(eq(messages.conversationId, conversationId), eq(messages.deleted, false)))
       .orderBy(messages.createdAt);
 
     return Promise.all(
@@ -534,6 +588,13 @@ export class DatabaseStorage implements IStorage {
     await this.updateConversationLastMessage(insertMsg.conversationId, insertMsg.content);
     
     return message;
+  }
+
+  async updateMessageDeleted(id: string, deleted: boolean): Promise<void> {
+    await db
+      .update(messages)
+      .set({ deleted })
+      .where(eq(messages.id, id));
   }
 
   // Reaction operations

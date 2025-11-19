@@ -1,10 +1,16 @@
 import { useState } from "react";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Play, XCircle, RotateCcw, Users, Trash2, MoreVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import type { ConversationWithUsers } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -15,6 +21,11 @@ interface ConversationListProps {
   selectedId?: string;
   onSelectConversation: (id: string) => void;
   onNewConversation: () => void;
+  onStartConversation?: (id: string) => void;
+  onCloseConversation?: (id: string) => void;
+  onReopenConversation?: (id: string) => void;
+  onTransferConversation?: (id: string) => void;
+  onDeleteConversation?: (id: string) => void;
 }
 
 export function ConversationList({
@@ -22,6 +33,11 @@ export function ConversationList({
   selectedId,
   onSelectConversation,
   onNewConversation,
+  onStartConversation,
+  onCloseConversation,
+  onReopenConversation,
+  onTransferConversation,
+  onDeleteConversation,
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"pending" | "attending" | "closed">("pending");
@@ -130,53 +146,91 @@ export function ConversationList({
         ) : (
           <div className="divide-y divide-border">
             {filteredConversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                onClick={() => onSelectConversation(conversation.id)}
-                className={cn(
-                  "w-full p-4 flex items-center gap-3 hover-elevate active-elevate-2 transition-colors text-left",
-                  selectedId === conversation.id && "bg-accent"
-                )}
-                data-testid={`conversation-item-${conversation.id}`}
-              >
-                <div className="relative flex-shrink-0">
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage src={conversation.client.profileImageUrl || undefined} />
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                      {conversation.client.firstName?.charAt(0) || "C"}
-                      {conversation.client.lastName?.charAt(0) || ""}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div
+              <ContextMenu key={conversation.id}>
+                <ContextMenuTrigger asChild>
+                  <button
+                    onClick={() => onSelectConversation(conversation.id)}
                     className={cn(
-                      "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background",
-                      getStatusDotColor(conversation.status)
+                      "w-full p-4 flex items-center gap-3 hover-elevate active-elevate-2 transition-colors text-left",
+                      selectedId === conversation.id && "bg-accent"
                     )}
-                  />
-                </div>
+                    data-testid={`conversation-item-${conversation.id}`}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="w-12 h-12">
+                        <AvatarImage src={conversation.client.profileImageUrl || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                          {conversation.client.firstName?.charAt(0) || "C"}
+                          {conversation.client.lastName?.charAt(0) || ""}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div
+                        className={cn(
+                          "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background",
+                          getStatusDotColor(conversation.status)
+                        )}
+                      />
+                    </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <h3 className="font-medium text-sm truncate" data-testid={`text-conversation-name-${conversation.id}`}>
-                      {conversation.client.firstName} {conversation.client.lastName}
-                    </h3>
-                    {conversation.lastMessageAt && (
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {formatDistanceToNow(new Date(conversation.lastMessageAt), {
-                          addSuffix: true,
-                          locale: ptBR,
-                        })}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {conversation.lastMessage || "Sem mensagens ainda"}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-muted-foreground">#{conversation.protocolNumber}</span>
-                  </div>
-                </div>
-              </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h3 className="font-medium text-sm truncate" data-testid={`text-conversation-name-${conversation.id}`}>
+                          {conversation.client.firstName} {conversation.client.lastName}
+                        </h3>
+                        {conversation.lastMessageAt && (
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                            {formatDistanceToNow(new Date(conversation.lastMessageAt), {
+                              addSuffix: true,
+                              locale: ptBR,
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {conversation.lastMessage || "Sem mensagens ainda"}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">#{conversation.protocolNumber}</span>
+                      </div>
+                    </div>
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-48">
+                  {conversation.status === "pending" && onStartConversation && (
+                    <ContextMenuItem onClick={() => onStartConversation(conversation.id)}>
+                      <Play className="mr-2 h-4 w-4" />
+                      Iniciar Conversa
+                    </ContextMenuItem>
+                  )}
+                  {conversation.status === "attending" && onCloseConversation && (
+                    <ContextMenuItem onClick={() => onCloseConversation(conversation.id)}>
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Fechar Conversa
+                    </ContextMenuItem>
+                  )}
+                  {conversation.status === "closed" && onReopenConversation && (
+                    <ContextMenuItem onClick={() => onReopenConversation(conversation.id)}>
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Reabrir Conversa
+                    </ContextMenuItem>
+                  )}
+                  {onTransferConversation && (
+                    <ContextMenuItem onClick={() => onTransferConversation(conversation.id)}>
+                      <Users className="mr-2 h-4 w-4" />
+                      Transferir
+                    </ContextMenuItem>
+                  )}
+                  {onDeleteConversation && (
+                    <ContextMenuItem 
+                      onClick={() => onDeleteConversation(conversation.id)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Apagar
+                    </ContextMenuItem>
+                  )}
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </div>
         )}

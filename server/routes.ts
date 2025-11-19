@@ -538,6 +538,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/messages/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.updateMessageDeleted(id, true);
+      
+      // Send WebSocket notification to conversation participants
+      if (wsManager) {
+        const message = await storage.getMessage(id);
+        if (message) {
+          const conversation = await storage.getConversation(message.conversationId);
+          if (conversation) {
+            const participantIds = [conversation.clientId];
+            if (conversation.attendantId) participantIds.push(conversation.attendantId);
+            wsManager.notifyConversationUpdate(conversation, participantIds);
+          }
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      res.status(500).json({ message: 'Erro ao deletar mensagem' });
+    }
+  });
+
+  app.delete('/api/conversations/:id', requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.updateConversationDeleted(id, true);
+      
+      // Send WebSocket notification to conversation participants
+      if (wsManager) {
+        const conversation = await storage.getConversation(id);
+        if (conversation) {
+          const participantIds = [conversation.clientId];
+          if (conversation.attendantId) participantIds.push(conversation.attendantId);
+          wsManager.notifyConversationUpdate(conversation, participantIds);
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      res.status(500).json({ message: 'Erro ao deletar conversa' });
+    }
+  });
+
+  app.patch('/api/conversations/:id/transfer', requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { attendantId } = req.body;
+      
+      if (!attendantId) {
+        return res.status(400).json({ message: 'ID do atendente é obrigatório' });
+      }
+      
+      // Verify attendant exists
+      const attendant = await storage.getUser(attendantId);
+      if (!attendant || (attendant.role !== 'attendant' && attendant.role !== 'admin')) {
+        return res.status(400).json({ message: 'Atendente inválido' });
+      }
+      
+      await storage.updateConversationAttendant(id, attendantId);
+      
+      // Send WebSocket notification to conversation participants
+      if (wsManager) {
+        const conversation = await storage.getConversation(id);
+        if (conversation) {
+          const participantIds = [conversation.clientId, attendantId];
+          if (conversation.attendantId && conversation.attendantId !== attendantId) {
+            participantIds.push(conversation.attendantId);
+          }
+          wsManager.notifyConversationUpdate(conversation, participantIds);
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error transferring conversation:', error);
+      res.status(500).json({ message: 'Erro ao transferir conversa' });
+    }
+  });
+
   // Preferences routes
   app.patch('/api/preferences/sidebar', isAuthenticated, async (req, res) => {
     try {

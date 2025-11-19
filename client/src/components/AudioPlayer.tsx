@@ -108,7 +108,7 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
   const isVoiceRecording = fileName?.startsWith('audio-') || (!hasMetadata && fileName?.includes('.webm'));
 
   return (
-    <div className={cn("flex flex-col gap-3 p-4 bg-muted/50 rounded-lg min-w-[320px]", className)}>
+    <div className={cn("flex flex-col gap-3 p-4 bg-muted/50 rounded-lg w-full md:min-w-[600px]", className)}>
       <audio ref={audioRef} src={src} />
       
       <div className="flex gap-3">
@@ -118,13 +118,13 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
             <img
               src={albumArtUrl}
               alt="Album art"
-              className="w-24 h-24 rounded object-cover"
+              className="w-16 h-16 rounded object-cover"
             />
           ) : (
-            <div className="w-24 h-24 rounded bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+            <div className="w-16 h-16 rounded bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
               {isVoiceRecording ? (
                 <svg
-                  className="w-12 h-12 text-white"
+                  className="w-8 h-8 text-white"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -138,7 +138,7 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
                 </svg>
               ) : (
                 <svg
-                  className="w-12 h-12 text-white"
+                  className="w-8 h-8 text-white"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -179,40 +179,42 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
             </p>
           )}
         </div>
+      </div>
 
-        {/* Play/Pause button */}
+      {/* Play/Pause button and Progress bar */}
+      <div className="flex items-center gap-3">
         <Button
           size="icon"
           variant="ghost"
           onClick={togglePlay}
+          className="flex-shrink-0"
           data-testid="button-audio-play-pause"
         >
           {isPlaying ? (
-            <Pause className="h-5 w-5" />
+            <Pause className="h-7 w-7 text-primary" />
           ) : (
-            <Play className="h-5 w-5" />
+            <Play className="h-7 w-7 text-primary" />
           )}
         </Button>
-      </div>
-
-      {/* Progress bar - full width */}
-      <div className="flex flex-col gap-1">
-        <Slider
-          value={[currentTime]}
-          min={0}
-          max={duration || 100}
-          step={0.1}
-          onValueChange={handleProgressChange}
-          className="w-full [&_[role=slider]]:hidden"
-          data-testid="slider-audio-progress"
-        />
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-muted-foreground tabular-nums" data-testid="text-audio-current-time">
-            {formatTime(currentTime)}
-          </span>
-          <span className="text-xs text-muted-foreground tabular-nums" data-testid="text-audio-duration">
-            {formatTime(duration)}
-          </span>
+        
+        <div className="flex-1 flex flex-col gap-1">
+          <Slider
+            value={[currentTime]}
+            min={0}
+            max={duration || 100}
+            step={0.1}
+            onValueChange={handleProgressChange}
+            className="w-full [&_[role=slider]]:hidden"
+            data-testid="slider-audio-progress"
+          />
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-muted-foreground tabular-nums" data-testid="text-audio-current-time">
+              {formatTime(currentTime)}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums" data-testid="text-audio-duration">
+              {formatTime(duration)}
+            </span>
+          </div>
         </div>
       </div>
     </div>
