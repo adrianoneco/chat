@@ -7,6 +7,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
 import sharp from "sharp";
+import { parseBuffer } from "music-metadata";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateResetToken, isAuthenticated, requireRole } from "./auth";
 import { sendPasswordResetEmail } from "./email";
@@ -605,6 +606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let folder = 'files';
       let fileName = `${Date.now()}-${req.file.originalname}`;
       let processedBuffer = req.file.buffer;
+      let audioMetadata: any = null;
 
       if (type === 'image') {
         folder = 'images';
@@ -615,6 +617,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .toBuffer();
       } else if (type === 'audio') {
         folder = 'audio';
+        
+        // Extract audio metadata
+        try {
+          const metadata = await parseBuffer(req.file.buffer, { mimeType: req.file.mimetype });
+          audioMetadata = {
+            title: metadata.common.title,
+            artist: metadata.common.artist,
+            album: metadata.common.album,
+          };
+
+          // Save album art if present
+          if (metadata.common.picture && metadata.common.picture.length > 0) {
+            const picture = metadata.common.picture[0];
+            const albumArtFileName = `${Date.now()}-albumart.webp`;
+            const albumArtPath = path.join(dataDir, 'images', albumArtFileName);
+            
+            // Convert to webp and save
+            await sharp(picture.data)
+              .resize(300, 300, { fit: 'cover' })
+              .webp({ quality: 85 })
+              .toFile(albumArtPath);
+            
+            audioMetadata.albumArt = `/data/images/${albumArtFileName}`;
+          }
+        } catch (metadataError) {
+          console.error('Error extracting audio metadata:', metadataError);
+          // Continue without metadata if extraction fails
+        }
       } else if (type === 'video') {
         folder = 'video';
       }
@@ -631,6 +661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileName: req.file.originalname,
         fileSize,
         mimeType,
+        ...(audioMetadata && { audioMetadata }),
       });
     } catch (error) {
       console.error('Error uploading file:', error);

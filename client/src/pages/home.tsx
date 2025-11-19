@@ -26,6 +26,9 @@ export default function Home() {
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(true);
   const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>(conversationIdFromRoute);
   const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | undefined>(undefined);
+  const [uploadFileName, setUploadFileName] = useState<string | undefined>(undefined);
+  const [uploadAbortController, setUploadAbortController] = useState<AbortController | null>(null);
 
   useEffect(() => {
     if (conversationIdFromRoute) {
@@ -150,31 +153,85 @@ export default function Home() {
     mutationFn: async ({ file, type, replyToId }: { file: File; type: string; replyToId?: string }) => {
       if (!selectedConversationId) return;
       
+      setUploadProgress(0);
+      setUploadFileName(file.name);
+      
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', selectedConversationId);
       formData.append('type', type);
 
-      const uploadRes = await fetch('/api/upload/message-file', {
-        method: 'POST',
-        body: formData,
-      });
+      const abortController = new AbortController();
+      setUploadAbortController(abortController);
 
-      if (!uploadRes.ok) throw new Error('Upload failed');
-      
-      const uploadData = await uploadRes.json();
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
 
-      await apiRequest("POST", "/api/messages", {
-        conversationId: selectedConversationId,
-        content: uploadData.fileName || 'Arquivo',
-        type,
-        replyToId,
-        fileMetadata: {
-          url: uploadData.url,
-          fileName: uploadData.fileName,
-          fileSize: uploadData.fileSize,
-          mimeType: uploadData.mimeType,
-        },
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const progress = (e.loaded / e.total) * 100;
+            setUploadProgress(progress);
+          }
+        });
+
+        xhr.addEventListener('load', async () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const uploadData = JSON.parse(xhr.responseText);
+
+              await apiRequest("POST", "/api/messages", {
+                conversationId: selectedConversationId,
+                content: uploadData.fileName || 'Arquivo',
+                type,
+                replyToId,
+                fileMetadata: {
+                  url: uploadData.url,
+                  fileName: uploadData.fileName,
+                  fileSize: uploadData.fileSize,
+                  mimeType: uploadData.mimeType,
+                  ...(uploadData.audioMetadata && {
+                    id3: {
+                      title: uploadData.audioMetadata.title,
+                      artist: uploadData.audioMetadata.artist,
+                      album: uploadData.audioMetadata.album,
+                      coverArt: uploadData.audioMetadata.albumArt,
+                    },
+                  }),
+                },
+              });
+
+              setUploadProgress(100);
+              setTimeout(() => {
+                setUploadProgress(undefined);
+                setUploadFileName(undefined);
+              }, 1000);
+              resolve(uploadData);
+            } catch (error) {
+              reject(error);
+            }
+          } else {
+            reject(new Error('Upload failed'));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          setUploadProgress(undefined);
+          setUploadFileName(undefined);
+          reject(new Error('Upload failed'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          setUploadProgress(undefined);
+          setUploadFileName(undefined);
+          reject(new Error('Upload cancelled'));
+        });
+
+        xhr.open('POST', '/api/upload/message-file');
+        xhr.send(formData);
+
+        abortController.signal.addEventListener('abort', () => {
+          xhr.abort();
+        });
       });
     },
     onSuccess: () => {
@@ -183,8 +240,12 @@ export default function Home() {
       toast({
         title: "Arquivo enviado!",
       });
+      setUploadAbortController(null);
     },
     onError: (error) => {
+      setUploadProgress(undefined);
+      setUploadFileName(undefined);
+      setUploadAbortController(null);
       toast({
         title: "Erro ao enviar arquivo",
         description: error instanceof Error ? error.message : "Tente novamente",
@@ -378,6 +439,16 @@ export default function Home() {
                   disabled={sendMessageMutation.isPending || sendFileMutation.isPending}
                   replyingTo={replyingTo}
                   onCancelReply={handleCancelReply}
+                  uploadProgress={uploadProgress}
+                  uploadFileName={uploadFileName}
+                  onCancelUpload={() => {
+                    if (uploadAbortController) {
+                      uploadAbortController.abort();
+                      setUploadProgress(null);
+                      setUploadFileName(null);
+                      setUploadAbortController(null);
+                    }
+                  }}
                 />
               </>
             ) : (

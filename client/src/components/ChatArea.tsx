@@ -7,6 +7,8 @@ import type { MessageWithSender, User } from "@shared/schema";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Reply, Forward, Smile } from "lucide-react";
+import { AudioPlayer } from "./AudioPlayer";
+import { VideoPlayer } from "./VideoPlayer";
 
 interface ChatAreaProps {
   messages: MessageWithSender[];
@@ -60,29 +62,35 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
     switch (message.type) {
       case 'image':
         return (
-          <img
-            src={message.fileMetadata.url}
-            alt={message.fileMetadata.fileName || 'Image'}
-            className="max-w-sm rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={() => window.open(message.fileMetadata!.url, '_blank')}
-          />
+          <a
+            href={message.fileMetadata.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block max-w-sm"
+          >
+            <img
+              src={message.fileMetadata.url}
+              alt={message.fileMetadata.fileName || 'Image'}
+              className="max-h-96 rounded-lg cursor-pointer hover:opacity-90 transition-opacity object-contain w-full"
+            />
+          </a>
         );
       
       case 'video':
         return (
-          <video
+          <VideoPlayer
             src={message.fileMetadata.url}
-            controls
-            className="max-w-sm rounded-lg"
+            className="my-2"
           />
         );
       
       case 'audio':
         return (
-          <audio
+          <AudioPlayer
             src={message.fileMetadata.url}
-            controls
-            className="max-w-sm"
+            fileName={message.fileMetadata.fileName}
+            metadata={message.fileMetadata.id3}
+            className="my-2"
           />
         );
       

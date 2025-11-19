@@ -45,8 +45,29 @@ export function VideoPlayer({ src, className }: VideoPlayerProps) {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("ended", handleEnded);
+      
+      // Clean up hide controls timeout
+      if (hideControlsTimeout.current) {
+        clearTimeout(hideControlsTimeout.current);
+      }
     };
   }, []);
+
+  // Reset state and video element when src changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
+      video.muted = false;
+      video.volume = 1;
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsMuted(false);
+    setVolume(1);
+  }, [src]);
 
   const togglePlay = () => {
     const video = videoRef.current;

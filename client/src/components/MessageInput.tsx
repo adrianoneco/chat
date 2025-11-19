@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { UploadProgress } from "./UploadProgress";
 import type { MessageWithSender } from "@shared/schema";
 
 interface MessageInputProps {
@@ -12,9 +13,21 @@ interface MessageInputProps {
   disabled?: boolean;
   replyingTo?: MessageWithSender | null;
   onCancelReply?: () => void;
+  uploadProgress?: number;
+  uploadFileName?: string;
+  onCancelUpload?: () => void;
 }
 
-export function MessageInput({ onSendMessage, onSendFile, disabled, replyingTo, onCancelReply }: MessageInputProps) {
+export function MessageInput({ 
+  onSendMessage, 
+  onSendFile, 
+  disabled, 
+  replyingTo, 
+  onCancelReply,
+  uploadProgress,
+  uploadFileName,
+  onCancelUpload 
+}: MessageInputProps) {
   const { toast } = useToast();
   const [message, setMessage] = useState("");
   const [height, setHeight] = useState(60);
@@ -167,6 +180,14 @@ export function MessageInput({ onSendMessage, onSendFile, disabled, replyingTo, 
             </Button>
           )}
         </div>
+      )}
+
+      {uploadProgress !== undefined && uploadProgress < 100 && uploadFileName && (
+        <UploadProgress
+          fileName={uploadFileName}
+          progress={uploadProgress}
+          onCancel={onCancelUpload}
+        />
       )}
 
       {isRecording && (

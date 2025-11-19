@@ -3,33 +3,28 @@ import { Play, Pause, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import jsmediatags from "jsmediatags";
-
-interface AudioPlayerProps {
-  src: string;
-  fileName?: string;
-  className?: string;
-}
 
 interface AudioMetadata {
   title?: string;
   artist?: string;
   album?: string;
-  picture?: {
-    data: Uint8Array;
-    format: string;
-  };
+  coverArt?: string;
 }
 
-export function AudioPlayer({ src, fileName, className }: AudioPlayerProps) {
+interface AudioPlayerProps {
+  src: string;
+  fileName?: string;
+  metadata?: AudioMetadata;
+  className?: string;
+}
+
+export function AudioPlayer({ src, fileName, metadata: initialMetadata, className }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [metadata, setMetadata] = useState<AudioMetadata>({});
-  const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -59,27 +54,20 @@ export function AudioPlayer({ src, fileName, className }: AudioPlayerProps) {
     };
   }, []);
 
+  // Reset state and audio element when src changes
   useEffect(() => {
-    // Read ID3 tags
-    jsmediatags.read(src, {
-      onSuccess: (tag: any) => {
-        const { title, artist, album, picture } = tag.tags;
-        setMetadata({ title, artist, album, picture });
-
-        if (picture) {
-          const { data, format } = picture;
-          let base64String = "";
-          for (let i = 0; i < data.length; i++) {
-            base64String += String.fromCharCode(data[i]);
-          }
-          const imageUrl = `data:${format};base64,${btoa(base64String)}`;
-          setAlbumArtUrl(imageUrl);
-        }
-      },
-      onError: (error: any) => {
-        console.error("Error reading audio tags:", error);
-      },
-    });
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+      audio.volume = 1;
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsMuted(false);
+    setVolume(1);
   }, [src]);
 
   const togglePlay = () => {
@@ -135,9 +123,10 @@ export function AudioPlayer({ src, fileName, className }: AudioPlayerProps) {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const displayTitle = metadata.title || fileName || "Áudio";
-  const displayArtist = metadata.artist || "Artista desconhecido";
-  const displayAlbum = metadata.album || "";
+  const displayTitle = initialMetadata?.title || fileName || "Áudio";
+  const displayArtist = initialMetadata?.artist || "Artista desconhecido";
+  const displayAlbum = initialMetadata?.album || "Álbum desconhecido";
+  const albumArtUrl = initialMetadata?.coverArt;
 
   return (
     <div className={cn("flex gap-3 p-3 bg-muted/50 rounded-lg max-w-md", className)}>
@@ -180,11 +169,9 @@ export function AudioPlayer({ src, fileName, className }: AudioPlayerProps) {
           <p className="text-xs text-muted-foreground truncate" title={displayArtist}>
             {displayArtist}
           </p>
-          {displayAlbum && (
-            <p className="text-xs text-muted-foreground truncate" title={displayAlbum}>
-              {displayAlbum}
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground truncate" title={displayAlbum}>
+            {displayAlbum}
+          </p>
         </div>
 
         {/* Controls */}
