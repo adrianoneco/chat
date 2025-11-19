@@ -108,7 +108,7 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
   const isVoiceRecording = fileName?.startsWith('audio-') || (!hasMetadata && fileName?.includes('.webm'));
 
   return (
-    <div className={cn("flex flex-col gap-3 p-4 bg-muted/50 rounded-lg w-full md:min-w-[600px]", className)}>
+    <div className={cn("flex flex-col gap-3 p-4 bg-muted/50 rounded-lg w-full min-w-0 md:min-w-[600px]", className)}>
       <audio ref={audioRef} src={src} />
       
       <div className="flex gap-3">
@@ -191,9 +191,9 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
           data-testid="button-audio-play-pause"
         >
           {isPlaying ? (
-            <Pause className="h-7 w-7 text-primary" />
+            <Pause className="h-9 w-9 text-primary" />
           ) : (
-            <Play className="h-7 w-7 text-primary" />
+            <Play className="h-9 w-9 text-primary" />
           )}
         </Button>
         

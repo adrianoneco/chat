@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,7 @@ export default function Home() {
   const [uploadAbortController, setUploadAbortController] = useState<AbortController | null>(null);
   const [forwardModalOpen, setForwardModalOpen] = useState(false);
   const [messageToForward, setMessageToForward] = useState<MessageWithSender | null>(null);
+  const [optimisticMessage, setOptimisticMessage] = useState<MessageWithSender | null>(null);
 
   useEffect(() => {
     if (conversationIdFromRoute) {
@@ -69,10 +70,18 @@ export default function Home() {
     enabled: isAuthenticated,
   });
 
-  const { data: messages = [] } = useQuery<MessageWithSender[]>({
+  const { data: fetchedMessages = [] } = useQuery<MessageWithSender[]>({
     queryKey: ["/api/messages", selectedConversationId],
     enabled: !!selectedConversationId && isAuthenticated,
   });
+
+  // Create stable messages array that includes optimistic message
+  const messages = useMemo(() => {
+    if (optimisticMessage && optimisticMessage.conversationId === selectedConversationId) {
+      return [...fetchedMessages, optimisticMessage];
+    }
+    return fetchedMessages;
+  }, [fetchedMessages, optimisticMessage, selectedConversationId]);
 
   // Reprocess audio files without ID3 tags when conversation is loaded
   useEffect(() => {
@@ -80,7 +89,10 @@ export default function Home() {
 
     const reprocessAudios = async () => {
       const audioMessages = messages.filter(
-        m => m.type === 'audio' && m.fileMetadata?.url && !m.fileMetadata?.id3
+        m => m.type === 'audio' && 
+        m.fileMetadata?.url && 
+        !m.fileMetadata?.id3 &&
+        !m.id.startsWith('temp-') // Skip optimistic messages
       );
 
       for (const message of audioMessages) {
@@ -184,10 +196,32 @@ export default function Home() {
 
   const sendFileMutation = useMutation({
     mutationFn: async ({ file, type, replyToId }: { file: File; type: string; replyToId?: string }) => {
-      if (!selectedConversationId) return;
+      if (!selectedConversationId || !user) return;
       
       setUploadProgress(0);
       setUploadFileName(file.name);
+      
+      // Create optimistic message to show immediately
+      const optimisticMsg: MessageWithSender = {
+        id: `temp-${Date.now()}`,
+        conversationId: selectedConversationId,
+        senderId: user.id,
+        content: file.name,
+        type: type as any,
+        replyToId: replyToId || null,
+        forwardedFromId: null,
+        createdAt: new Date(),
+        deleted: false,
+        fileMetadata: {
+          url: URL.createObjectURL(file),
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+        },
+        sender: user,
+        reactions: [],
+      };
+      setOptimisticMessage(optimisticMsg);
       
       const formData = new FormData();
       formData.append('file', file);
@@ -237,6 +271,7 @@ export default function Home() {
               setTimeout(() => {
                 setUploadProgress(undefined);
                 setUploadFileName(undefined);
+                setOptimisticMessage(null);
               }, 1000);
               resolve(uploadData);
             } catch (error) {
@@ -250,12 +285,14 @@ export default function Home() {
         xhr.addEventListener('error', () => {
           setUploadProgress(undefined);
           setUploadFileName(undefined);
+          setOptimisticMessage(null);
           reject(new Error('Upload failed'));
         });
 
         xhr.addEventListener('abort', () => {
           setUploadProgress(undefined);
           setUploadFileName(undefined);
+          setOptimisticMessage(null);
           reject(new Error('Upload cancelled'));
         });
 
@@ -278,6 +315,7 @@ export default function Home() {
     onError: (error) => {
       setUploadProgress(undefined);
       setUploadFileName(undefined);
+      setOptimisticMessage(null);
       setUploadAbortController(null);
       toast({
         title: "Erro ao enviar arquivo",
