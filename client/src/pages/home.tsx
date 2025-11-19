@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useWebSocketConversation, useWebSocketMessage } from "@/hooks/useWebSocket";
 import { Header } from "@/components/Header";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { ConversationList } from "@/components/ConversationList";
@@ -61,6 +62,31 @@ export default function Home() {
   });
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+
+  // WebSocket listeners for real-time updates
+  const handleWSNewConversation = useCallback((conversation: ConversationWithUsers) => {
+    queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    toast({
+      title: "Nova conversa",
+      description: `Conversa com ${conversation.client.firstName} foi criada`,
+    });
+  }, [toast]);
+
+  const handleWSConversationUpdate = useCallback((conversation: ConversationWithUsers) => {
+    queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+  }, []);
+
+  const handleWSNewMessage = useCallback((message: MessageWithSender) => {
+    // Always refresh conversations list to update last message
+    queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    // Also refresh messages if this is the active conversation
+    if (selectedConversationId) {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedConversationId] });
+    }
+  }, [selectedConversationId]);
+
+  useWebSocketConversation(handleWSNewConversation, handleWSConversationUpdate);
+  useWebSocketMessage(selectedConversationId, handleWSNewMessage);
 
   const updateSidebarPreference = useMutation({
     mutationFn: async (collapsed: boolean) => {
