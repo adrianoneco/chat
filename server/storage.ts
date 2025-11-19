@@ -4,6 +4,7 @@ import {
   messages,
   reactions,
   webhooks,
+  campaigns,
   type User,
   type UpsertUser,
   type Conversation,
@@ -14,6 +15,9 @@ import {
   type InsertReaction,
   type Webhook,
   type InsertWebhook,
+  type Campaign,
+  type InsertCampaign,
+  type CampaignWithCreator,
   type ConversationWithUsers,
   type MessageWithSender,
   type ReactionWithUser,
@@ -61,6 +65,13 @@ export interface IStorage {
   createWebhook(webhook: InsertWebhook): Promise<Webhook>;
   updateWebhook(id: string, data: Partial<Webhook>): Promise<Webhook | undefined>;
   deleteWebhook(id: string): Promise<boolean>;
+
+  // Campaign operations
+  getCampaigns(): Promise<CampaignWithCreator[]>;
+  getCampaignById(id: string): Promise<CampaignWithCreator | undefined>;
+  createCampaign(campaign: InsertCampaign): Promise<Campaign>;
+  updateCampaign(id: string, data: Partial<Campaign>): Promise<Campaign | undefined>;
+  deleteCampaign(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -69,6 +80,7 @@ export class MemStorage implements IStorage {
   private messages: Map<string, Message>;
   private reactions: Map<string, Reaction>;
   private webhooks: Map<string, Webhook>;
+  private campaigns: Map<string, Campaign>;
 
   constructor() {
     this.users = new Map();
@@ -76,6 +88,7 @@ export class MemStorage implements IStorage {
     this.messages = new Map();
     this.reactions = new Map();
     this.webhooks = new Map();
+    this.campaigns = new Map();
   }
 
   // User operations
@@ -366,6 +379,59 @@ export class MemStorage implements IStorage {
 
   async deleteWebhook(id: string): Promise<boolean> {
     return this.webhooks.delete(id);
+  }
+
+  // Campaign operations
+  async getCampaigns(): Promise<CampaignWithCreator[]> {
+    const campaignList = Array.from(this.campaigns.values());
+    return await Promise.all(
+      campaignList.map(async (campaign) => {
+        const creator = await this.getUser(campaign.createdBy);
+        return {
+          ...campaign,
+          creator: creator!,
+        };
+      })
+    );
+  }
+
+  async getCampaignById(id: string): Promise<CampaignWithCreator | undefined> {
+    const campaign = this.campaigns.get(id);
+    if (!campaign) return undefined;
+    const creator = await this.getUser(campaign.createdBy);
+    return {
+      ...campaign,
+      creator: creator!,
+    };
+  }
+
+  async createCampaign(campaignData: InsertCampaign): Promise<Campaign> {
+    const id = randomUUID();
+    const campaign: Campaign = {
+      ...campaignData,
+      id,
+      sentCount: "0",
+      deliveredCount: "0",
+      failedCount: "0",
+      startedAt: null,
+      completedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as Campaign;
+    this.campaigns.set(id, campaign);
+    return campaign;
+  }
+
+  async updateCampaign(id: string, data: Partial<Campaign>): Promise<Campaign | undefined> {
+    const campaign = this.campaigns.get(id);
+    if (!campaign) return undefined;
+    const updated = { ...campaign, ...data, updatedAt: new Date() };
+    this.campaigns.set(id, updated);
+    return updated;
+  }
+
+  async deleteCampaign(id: string): Promise<boolean> {
+    return this.campaigns.delete(id);
   }
 }
 
@@ -661,6 +727,50 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWebhook(id: string): Promise<boolean> {
     const results = await db.delete(webhooks).where(eq(webhooks.id, id)).returning();
+    return results.length > 0;
+  }
+
+  // Campaign operations
+  async getCampaigns(): Promise<CampaignWithCreator[]> {
+    const campaignList = await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+    return await Promise.all(
+      campaignList.map(async (campaign) => {
+        const creator = await this.getUser(campaign.createdBy);
+        return {
+          ...campaign,
+          creator: creator!,
+        };
+      })
+    );
+  }
+
+  async getCampaignById(id: string): Promise<CampaignWithCreator | undefined> {
+    const results = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    if (results.length === 0) return undefined;
+    const campaign = results[0];
+    const creator = await this.getUser(campaign.createdBy);
+    return {
+      ...campaign,
+      creator: creator!,
+    };
+  }
+
+  async createCampaign(campaignData: InsertCampaign): Promise<Campaign> {
+    const results = await db.insert(campaigns).values(campaignData as any).returning();
+    return results[0];
+  }
+
+  async updateCampaign(id: string, data: Partial<Campaign>): Promise<Campaign | undefined> {
+    const results = await db
+      .update(campaigns)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(eq(campaigns.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteCampaign(id: string): Promise<boolean> {
+    const results = await db.delete(campaigns).where(eq(campaigns.id, id)).returning();
     return results.length > 0;
   }
 }

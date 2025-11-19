@@ -15,6 +15,7 @@ import ResetPassword from "@/pages/reset-password";
 import Home from "@/pages/home";
 import Attendants from "@/pages/attendants";
 import Contacts from "@/pages/contacts";
+import Campaigns from "@/pages/campaigns";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -27,6 +28,7 @@ function ProtectedRoutes() {
           <Route path="/conversations/:id" component={Home} />
           <Route path="/attendants" component={Attendants} />
           <Route path="/contacts" component={Contacts} />
+          <Route path="/campaigns" component={Campaigns} />
           <Route path="/settings/:rest*" component={Settings} />
           <Route path="/" component={Home} />
           <Route component={NotFound} />

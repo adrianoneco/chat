@@ -21,6 +21,8 @@ import {
   insertMessageSchema,
   insertReactionSchema,
   insertWebhookSchema,
+  insertCampaignSchema,
+  updateCampaignSchema,
   users,
   messages,
   webhooks,
@@ -1160,6 +1162,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: error.message || 'Erro ao testar webhook',
       });
+    }
+  });
+
+  // Campaign routes
+  app.get('/api/campaigns', isAuthenticated, async (req, res) => {
+    try {
+      const campaigns = await storage.getCampaigns();
+      res.json(campaigns);
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      res.status(500).json({ message: 'Erro ao buscar campanhas' });
+    }
+  });
+
+  app.get('/api/campaigns/:id', isAuthenticated, async (req, res) => {
+    try {
+      const campaign = await storage.getCampaignById(req.params.id);
+      if (!campaign) {
+        return res.status(404).json({ message: 'Campanha não encontrada' });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error('Error fetching campaign:', error);
+      res.status(500).json({ message: 'Erro ao buscar campanha' });
+    }
+  });
+
+  app.post('/api/campaigns', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertCampaignSchema.parse(req.body);
+      const campaign = await storage.createCampaign({
+        ...validatedData,
+        createdBy: req.session.userId!,
+      });
+      res.json(campaign);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error creating campaign:', error);
+      res.status(500).json({ message: 'Erro ao criar campanha' });
+    }
+  });
+
+  app.patch('/api/campaigns/:id', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = updateCampaignSchema.parse(req.body);
+      const campaign = await storage.updateCampaign(req.params.id, validatedData as any);
+      if (!campaign) {
+        return res.status(404).json({ message: 'Campanha não encontrada' });
+      }
+      res.json(campaign);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error updating campaign:', error);
+      res.status(500).json({ message: 'Erro ao atualizar campanha' });
+    }
+  });
+
+  app.delete('/api/campaigns/:id', isAuthenticated, async (req, res) => {
+    try {
+      const success = await storage.deleteCampaign(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: 'Campanha não encontrada' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      res.status(500).json({ message: 'Erro ao deletar campanha' });
     }
   });
 

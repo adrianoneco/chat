@@ -1,4 +1,4 @@
-import { MessageSquare, Users, UserCog, ContactRound, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { MessageSquare, Users, UserCog, ContactRound, ChevronLeft, ChevronRight, Settings, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -18,12 +18,9 @@ export function LeftSidebar({ collapsed, onToggleCollapse }: LeftSidebarProps) {
     { icon: MessageSquare, label: "Conversas", path: "/" },
     { icon: UserCog, label: "Atendentes", path: "/attendants" },
     { icon: ContactRound, label: "Contatos", path: "/contacts" },
+    { icon: Megaphone, label: "Campanhas", path: "/campaigns" },
+    { icon: Settings, label: "Configurações", path: "/settings/webhooks" },
   ];
-
-  // Add settings menu item for admin users
-  if (user?.role === "admin") {
-    menuItems.push({ icon: Settings, label: "Configurações", path: "/settings/webhooks" });
-  }
 
   return (
     <aside

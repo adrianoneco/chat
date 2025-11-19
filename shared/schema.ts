@@ -230,3 +230,66 @@ export const insertWebhookSchema = createInsertSchema(webhooks).omit({
 
 export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
 export type Webhook = typeof webhooks.$inferSelect;
+
+// Campaign statuses
+export const campaignStatuses = ["draft", "scheduled", "active", "paused", "completed"] as const;
+export type CampaignStatus = typeof campaignStatuses[number];
+
+// Campaign types
+export const campaignTypes = ["broadcast", "automated", "targeted"] as const;
+export type CampaignType = typeof campaignTypes[number];
+
+// Campaigns table
+export const campaigns = pgTable("campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  type: varchar("type").$type<CampaignType>().notNull().default("broadcast"),
+  status: varchar("status").$type<CampaignStatus>().notNull().default("draft"),
+  message: text("message").notNull(),
+  mediaUrl: varchar("media_url"),
+  mediaType: varchar("media_type").$type<MessageType>(),
+  scheduledAt: timestamp("scheduled_at"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  targetAudience: jsonb("target_audience").$type<{
+    roles?: UserRole[];
+    userIds?: string[];
+    conversationStatuses?: ConversationStatus[];
+  }>(),
+  sentCount: varchar("sent_count").notNull().default("0"),
+  deliveredCount: varchar("delivered_count").notNull().default("0"),
+  failedCount: varchar("failed_count").notNull().default("0"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCampaignSchema = createInsertSchema(campaigns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  sentCount: true,
+  deliveredCount: true,
+  failedCount: true,
+  startedAt: true,
+  completedAt: true,
+}).partial({
+  description: true,
+  mediaUrl: true,
+  mediaType: true,
+  scheduledAt: true,
+  targetAudience: true,
+});
+
+export const updateCampaignSchema = insertCampaignSchema.omit({
+  createdBy: true,
+}).partial();
+
+export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
+export type UpdateCampaign = z.infer<typeof updateCampaignSchema>;
+export type Campaign = typeof campaigns.$inferSelect;
+
+export type CampaignWithCreator = Campaign & {
+  creator: User;
+};

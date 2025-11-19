@@ -187,13 +187,16 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
           size="icon"
           variant="ghost"
           onClick={togglePlay}
-          className="flex-shrink-0"
+          className={cn(
+            "flex-shrink-0 hover:bg-primary/10 transition-colors",
+            isPlaying ? "bg-primary/20" : "bg-primary/30"
+          )}
           data-testid="button-audio-play-pause"
         >
           {isPlaying ? (
             <Pause className="h-9 w-9 text-primary" />
           ) : (
-            <Play className="h-9 w-9 text-primary" />
+            <Play className="h-9 w-9 text-primary drop-shadow-md" />
           )}
         </Button>
         
