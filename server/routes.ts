@@ -1,10 +1,16 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import multer from "multer";
+import path from "path";
+import fs from "fs/promises";
+import sharp from "sharp";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateResetToken, isAuthenticated, requireRole } from "./auth";
 import { sendPasswordResetEmail } from "./email";
+import { initializeWebSocket, wsManager } from "./websocket";
 import {
   loginSchema,
   signupSchema,
@@ -12,6 +18,7 @@ import {
   resetPasswordSchema,
   insertConversationSchema,
   insertMessageSchema,
+  insertReactionSchema,
   users,
 } from "@shared/schema";
 import { z } from "zod";
@@ -32,21 +39,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.set('trust proxy', 1);
 
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET,
-      store: new MemoryStore({
-        checkPeriod: 86400000, // prune expired entries every 24h
-      }),
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      },
-    })
-  );
+  const sessionMiddleware = session({
+    secret: process.env.SESSION_SECRET,
+    store: new MemoryStore({
+      checkPeriod: 86400000, // prune expired entries every 24h
+    }),
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+  });
+
+  app.use(sessionMiddleware);
+
+  // Configure multer for file uploads
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  await fs.mkdir(uploadsDir, { recursive: true });
+  await fs.mkdir(path.join(uploadsDir, 'images'), { recursive: true });
+  await fs.mkdir(path.join(uploadsDir, 'audio'), { recursive: true });
+  await fs.mkdir(path.join(uploadsDir, 'video'), { recursive: true });
+  await fs.mkdir(path.join(uploadsDir, 'files'), { recursive: true });
+  await fs.mkdir(path.join(uploadsDir, 'profiles'), { recursive: true });
+
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+  });
+
+  // Serve uploaded files
+  app.use('/uploads', (req, res, next) => {
+    express.static(uploadsDir)(req, res, next);
+  });
 
   // Authentication routes
   app.post('/api/auth/signup', async (req, res) => {
@@ -451,6 +479,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         senderId: userId,
       });
       const message = await storage.createMessage(validatedData);
+      
+      // Send WebSocket notification to conversation participants
+      if (wsManager) {
+        const conversation = await storage.getConversation(message.conversationId);
+        if (conversation) {
+          const participantIds = [conversation.clientId];
+          if (conversation.attendantId) participantIds.push(conversation.attendantId);
+          
+          const sender = await storage.getUser(userId);
+          const messageWithSender = {
+            ...message,
+            sender: sender!,
+          };
+          
+          wsManager.notifyNewMessage(message.conversationId, messageWithSender, participantIds);
+          wsManager.notifyConversationUpdate(conversation, participantIds);
+        }
+      }
+      
       res.status(201).json(message);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -476,6 +523,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating sidebar preference:', error);
       res.status(500).json({ message: 'Erro ao atualizar preferência' });
+    }
+  });
+
+  // File upload routes
+  app.post('/api/upload/profile-image/:userId', isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const currentUserId = req.session.userId!;
+      const userRole = req.session.userRole!;
+      
+      if (currentUserId !== userId && userRole !== 'admin') {
+        return res.status(403).json({ message: 'Não autorizado' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'Nenhum arquivo enviado' });
+      }
+
+      const fileName = `${userId}.webp`;
+      const filePath = path.join(uploadsDir, 'profiles', fileName);
+      
+      await sharp(req.file.buffer)
+        .resize(400, 400, { fit: 'cover' })
+        .webp({ quality: 85 })
+        .toFile(filePath);
+
+      const imageUrl = `/uploads/profiles/${fileName}`;
+      await storage.updateUser(userId, { profileImageUrl: imageUrl });
+
+      if (wsManager) {
+        const user = await storage.getUser(userId);
+        if (user) {
+          const { password: _, resetToken, resetTokenExpiry, ...userWithoutPassword } = user;
+          const allUsers = await storage.getAllUsers();
+          const userIds = allUsers.map(u => u.id);
+          wsManager.notifyUserUpdate(userWithoutPassword, userIds);
+        }
+      }
+
+      res.json({ url: imageUrl });
+    } catch (error) {
+      console.error('Error uploading profile image:', error);
+      res.status(500).json({ message: 'Erro ao enviar imagem' });
+    }
+  });
+
+  app.post('/api/upload/message-file', isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'Nenhum arquivo enviado' });
+      }
+
+      const { conversationId, type } = req.body;
+      const userId = req.session.userId!;
+      
+      let folder = 'files';
+      let fileName = `${Date.now()}-${req.file.originalname}`;
+      let processedBuffer = req.file.buffer;
+
+      if (type === 'image') {
+        folder = 'images';
+        fileName = `${Date.now()}.webp`;
+        processedBuffer = await sharp(req.file.buffer)
+          .resize(1920, 1920, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 85 })
+          .toBuffer();
+      } else if (type === 'audio') {
+        folder = 'audio';
+      } else if (type === 'video') {
+        folder = 'video';
+      }
+
+      const filePath = path.join(uploadsDir, folder, fileName);
+      await fs.writeFile(filePath, processedBuffer);
+
+      const fileUrl = `/uploads/${folder}/${fileName}`;
+      const fileSize = processedBuffer.length;
+      const mimeType = req.file.mimetype;
+
+      res.json({
+        url: fileUrl,
+        fileName: req.file.originalname,
+        fileSize,
+        mimeType,
+      });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      res.status(500).json({ message: 'Erro ao enviar arquivo' });
+    }
+  });
+
+  // Reaction routes
+  app.get('/api/reactions/:messageId', isAuthenticated, async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const reactions = await storage.getReactionsByMessage(messageId);
+      res.json(reactions);
+    } catch (error) {
+      console.error('Error fetching reactions:', error);
+      res.status(500).json({ message: 'Erro ao buscar reações' });
+    }
+  });
+
+  app.post('/api/reactions', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const validatedData = insertReactionSchema.parse({
+        ...req.body,
+        userId,
+      });
+      
+      const existing = await storage.getReactionByUserAndMessage(userId, validatedData.messageId);
+      if (existing && existing.emoji === validatedData.emoji) {
+        await storage.deleteReaction(existing.id);
+        
+        if (wsManager) {
+          const message = await storage.getMessage(validatedData.messageId);
+          if (message) {
+            const conversation = await storage.getConversation(message.conversationId);
+            if (conversation) {
+              const participantIds = [conversation.clientId];
+              if (conversation.attendantId) participantIds.push(conversation.attendantId);
+              wsManager.notifyReaction(validatedData.messageId, null, participantIds);
+            }
+          }
+        }
+        
+        return res.json({ success: true, removed: true });
+      }
+      
+      if (existing) {
+        await storage.deleteReaction(existing.id);
+      }
+      
+      const reaction = await storage.createReaction(validatedData);
+      
+      if (wsManager) {
+        const message = await storage.getMessage(validatedData.messageId);
+        if (message) {
+          const conversation = await storage.getConversation(message.conversationId);
+          if (conversation) {
+            const participantIds = [conversation.clientId];
+            if (conversation.attendantId) participantIds.push(conversation.attendantId);
+            wsManager.notifyReaction(validatedData.messageId, reaction, participantIds);
+          }
+        }
+      }
+      
+      res.status(201).json(reaction);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error creating reaction:', error);
+      res.status(500).json({ message: 'Erro ao criar reação' });
     }
   });
 
@@ -622,5 +824,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket
+  initializeWebSocket(httpServer, sessionMiddleware);
+  
   return httpServer;
 }

@@ -118,6 +118,24 @@ export const messages = pgTable("messages", {
   senderId: varchar("sender_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   type: varchar("type").$type<MessageType>().notNull().default("text"),
+  replyToId: varchar("reply_to_id").references((): any => messages.id),
+  forwardedFromId: varchar("forwarded_from_id").references((): any => messages.id),
+  fileMetadata: jsonb("file_metadata").$type<{
+    fileName?: string;
+    fileSize?: number;
+    mimeType?: string;
+    url?: string;
+    thumbnailUrl?: string;
+    duration?: number;
+    width?: number;
+    height?: number;
+    id3?: {
+      title?: string;
+      artist?: string;
+      album?: string;
+      coverArt?: string;
+    };
+  }>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -128,6 +146,23 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+
+// Reactions table
+export const reactions = pgTable("reactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  emoji: varchar("emoji").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertReactionSchema = createInsertSchema(reactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertReaction = z.infer<typeof insertReactionSchema>;
+export type Reaction = typeof reactions.$inferSelect;
 
 // Extended types with relations
 export type ConversationWithUsers = Conversation & {
@@ -141,4 +176,11 @@ export type ConversationWithDetails = ConversationWithUsers & {
 
 export type MessageWithSender = Message & {
   sender: User;
+  replyTo?: Message | null;
+  forwardedFrom?: Message | null;
+  reactions?: ReactionWithUser[];
+};
+
+export type ReactionWithUser = Reaction & {
+  user: User;
 };

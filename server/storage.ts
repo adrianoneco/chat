@@ -2,17 +2,21 @@ import {
   users,
   conversations,
   messages,
+  reactions,
   type User,
   type UpsertUser,
   type Conversation,
   type InsertConversation,
   type Message,
   type InsertMessage,
+  type Reaction,
+  type InsertReaction,
   type ConversationWithUsers,
   type MessageWithSender,
+  type ReactionWithUser,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, or, desc } from "drizzle-orm";
+import { eq, or, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -35,19 +39,28 @@ export interface IStorage {
   updateConversationLastMessage(id: string, message: string): Promise<void>;
 
   // Message operations
+  getMessage(id: string): Promise<Message | undefined>;
   getMessages(conversationId: string): Promise<MessageWithSender[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+
+  // Reaction operations
+  getReactionsByMessage(messageId: string): Promise<ReactionWithUser[]>;
+  getReactionByUserAndMessage(userId: string, messageId: string): Promise<Reaction | undefined>;
+  createReaction(reaction: InsertReaction): Promise<Reaction>;
+  deleteReaction(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private conversations: Map<string, Conversation>;
   private messages: Map<string, Message>;
+  private reactions: Map<string, Reaction>;
 
   constructor() {
     this.users = new Map();
     this.conversations = new Map();
     this.messages = new Map();
+    this.reactions = new Map();
   }
 
   // User operations
@@ -185,6 +198,10 @@ export class MemStorage implements IStorage {
   }
 
   // Message operations
+  async getMessage(id: string): Promise<Message | undefined> {
+    return this.messages.get(id);
+  }
+
   async getMessages(conversationId: string): Promise<MessageWithSender[]> {
     const msgs = Array.from(this.messages.values()).filter(
       (m) => m.conversationId === conversationId
@@ -214,6 +231,44 @@ export class MemStorage implements IStorage {
     await this.updateConversationLastMessage(insertMsg.conversationId, insertMsg.content);
     
     return message;
+  }
+
+  // Reaction operations
+  async getReactionsByMessage(messageId: string): Promise<ReactionWithUser[]> {
+    const reacts = Array.from(this.reactions.values()).filter(
+      (r) => r.messageId === messageId
+    );
+
+    return Promise.all(
+      reacts.map(async (react) => {
+        const user = await this.getUser(react.userId);
+        return {
+          ...react,
+          user: user!,
+        };
+      })
+    );
+  }
+
+  async getReactionByUserAndMessage(userId: string, messageId: string): Promise<Reaction | undefined> {
+    return Array.from(this.reactions.values()).find(
+      (r) => r.userId === userId && r.messageId === messageId
+    );
+  }
+
+  async createReaction(insertReact: InsertReaction): Promise<Reaction> {
+    const id = randomUUID();
+    const reaction: Reaction = {
+      ...insertReact,
+      id,
+      createdAt: new Date(),
+    } as Reaction;
+    this.reactions.set(id, reaction);
+    return reaction;
+  }
+
+  async deleteReaction(id: string): Promise<void> {
+    this.reactions.delete(id);
   }
 }
 
@@ -359,6 +414,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Message operations
+  async getMessage(id: string): Promise<Message | undefined> {
+    const [message] = await db.select().from(messages).where(eq(messages.id, id));
+    return message;
+  }
+
   async getMessages(conversationId: string): Promise<MessageWithSender[]> {
     const msgs = await db
       .select()
@@ -387,6 +447,44 @@ export class DatabaseStorage implements IStorage {
     await this.updateConversationLastMessage(insertMsg.conversationId, insertMsg.content);
     
     return message;
+  }
+
+  // Reaction operations
+  async getReactionsByMessage(messageId: string): Promise<ReactionWithUser[]> {
+    const reacts = await db
+      .select()
+      .from(reactions)
+      .where(eq(reactions.messageId, messageId));
+
+    return Promise.all(
+      reacts.map(async (react) => {
+        const user = await this.getUser(react.userId);
+        return {
+          ...react,
+          user: user!,
+        };
+      })
+    );
+  }
+
+  async getReactionByUserAndMessage(userId: string, messageId: string): Promise<Reaction | undefined> {
+    const [reaction] = await db
+      .select()
+      .from(reactions)
+      .where(and(eq(reactions.userId, userId), eq(reactions.messageId, messageId)));
+    return reaction;
+  }
+
+  async createReaction(insertReact: InsertReaction): Promise<Reaction> {
+    const [reaction] = await db
+      .insert(reactions)
+      .values(insertReact)
+      .returning();
+    return reaction;
+  }
+
+  async deleteReaction(id: string): Promise<void> {
+    await db.delete(reactions).where(eq(reactions.id, id));
   }
 }
 
