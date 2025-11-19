@@ -76,7 +76,7 @@ export function LeftSidebar({ collapsed, onToggleCollapse }: LeftSidebarProps) {
             variant="ghost"
             size="icon"
             onClick={onToggleCollapse}
-            className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-sidebar border border-sidebar-border shadow-md hover-elevate active-elevate-2 z-50"
+            className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-12 rounded-r-md rounded-l-none bg-sidebar border border-l-0 border-sidebar-border shadow-md hover-elevate active-elevate-2 z-50"
             data-testid="button-toggle-left-sidebar"
           >
             {collapsed ? (
