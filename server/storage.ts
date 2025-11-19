@@ -210,9 +210,28 @@ export class MemStorage implements IStorage {
     return Promise.all(
       msgs.map(async (msg) => {
         const sender = await this.getUser(msg.senderId);
+        
+        // Get replyTo message if exists
+        let replyTo = undefined;
+        if (msg.replyToId) {
+          replyTo = this.messages.get(msg.replyToId);
+        }
+        
+        // Get forwardedFrom message if exists
+        let forwardedFrom = undefined;
+        if (msg.forwardedFromId) {
+          forwardedFrom = this.messages.get(msg.forwardedFromId);
+        }
+        
+        // Get reactions for this message
+        const reactions = await this.getReactionsByMessage(msg.id);
+        
         return {
           ...msg,
           sender: sender!,
+          replyTo: replyTo || null,
+          forwardedFrom: forwardedFrom || null,
+          reactions,
         };
       })
     );
@@ -429,9 +448,28 @@ export class DatabaseStorage implements IStorage {
     return Promise.all(
       msgs.map(async (msg) => {
         const sender = await this.getUser(msg.senderId);
+        
+        // Get replyTo message if exists
+        let replyTo = null;
+        if (msg.replyToId) {
+          replyTo = await this.getMessage(msg.replyToId);
+        }
+        
+        // Get forwardedFrom message if exists
+        let forwardedFrom = null;
+        if (msg.forwardedFromId) {
+          forwardedFrom = await this.getMessage(msg.forwardedFromId);
+        }
+        
+        // Get reactions for this message
+        const reacts = await this.getReactionsByMessage(msg.id);
+        
         return {
           ...msg,
           sender: sender!,
+          replyTo,
+          forwardedFrom,
+          reactions: reacts,
         };
       })
     );

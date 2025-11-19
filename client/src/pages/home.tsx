@@ -25,12 +25,18 @@ export default function Home() {
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(true);
   const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>(conversationIdFromRoute);
+  const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null);
 
   useEffect(() => {
     if (conversationIdFromRoute) {
       setSelectedConversationId(conversationIdFromRoute);
     }
   }, [conversationIdFromRoute]);
+
+  // Reset replyingTo when conversation changes
+  useEffect(() => {
+    setReplyingTo(null);
+  }, [selectedConversationId]);
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
@@ -107,12 +113,13 @@ export default function Home() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({ content, replyToId }: { content: string; replyToId?: string }) => {
       if (!selectedConversationId) return;
       await apiRequest("POST", "/api/messages", {
         conversationId: selectedConversationId,
         content,
         type: "text",
+        replyToId,
       });
     },
     onSuccess: () => {
@@ -152,8 +159,32 @@ export default function Home() {
     });
   };
 
-  const handleSendMessage = (content: string) => {
-    sendMessageMutation.mutate(content);
+  const handleSendMessage = (content: string, replyToId?: string) => {
+    // Guard: Only include replyToId if it's from the current conversation
+    const validReplyToId = replyingTo?.conversationId === selectedConversationId ? replyToId : undefined;
+    sendMessageMutation.mutate({ content, replyToId: validReplyToId });
+  };
+
+  const handleReply = (message: MessageWithSender) => {
+    setReplyingTo(message);
+  };
+
+  const handleForward = (message: MessageWithSender) => {
+    toast({
+      title: "Em breve",
+      description: "Funcionalidade de encaminhar mensagem será implementada",
+    });
+  };
+
+  const handleReact = (message: MessageWithSender) => {
+    toast({
+      title: "Em breve",
+      description: "Funcionalidade de reagir será implementada",
+    });
+  };
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
   };
 
   if (isAuthLoading) {
@@ -210,10 +241,18 @@ export default function Home() {
           <div className="flex-1 flex flex-col min-w-0">
             {selectedConversation ? (
               <>
-                <ChatArea messages={messages} currentUser={user} />
+                <ChatArea 
+                  messages={messages} 
+                  currentUser={user}
+                  onReply={handleReply}
+                  onForward={handleForward}
+                  onReact={handleReact}
+                />
                 <MessageInput
                   onSendMessage={handleSendMessage}
                   disabled={sendMessageMutation.isPending}
+                  replyingTo={replyingTo}
+                  onCancelReply={handleCancelReply}
                 />
               </>
             ) : (
