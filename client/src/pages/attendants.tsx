@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,13 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { PhotoUpload } from "@/components/PhotoUpload";
 import { useToast } from "@/hooks/use-toast";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { Plus, Pencil, Trash2, Users } from "lucide-react";
 import type { User } from "@shared/schema";
 
 export default function Attendants() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { subscribe } = useWebSocket();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAttendant, setEditingAttendant] = useState<User | null>(null);
   const [formData, setFormData] = useState({
@@ -26,6 +29,16 @@ export default function Attendants() {
   const { data: attendants = [], isLoading } = useQuery<User[]>({
     queryKey: ["/api/attendants"],
   });
+
+  // WebSocket listener for real-time updates
+  const handleUserUpdate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/attendants"] });
+  }, [queryClient]);
+
+  useEffect(() => {
+    const unsubscribe = subscribe('user:update', handleUserUpdate);
+    return unsubscribe;
+  }, [subscribe, handleUserUpdate]);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -87,6 +100,28 @@ export default function Attendants() {
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao deletar atendente", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const uploadPhotoMutation = useMutation({
+    mutationFn: async ({ userId, file }: { userId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`/api/upload/profile-image/${userId}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Erro ao fazer upload");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendants"] });
+      toast({ title: "Foto atualizada com sucesso!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao fazer upload", description: error.message, variant: "destructive" });
     },
   });
 
@@ -247,16 +282,17 @@ export default function Attendants() {
                   minLength={6}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="profileImageUrl">URL da Foto (opcional)</Label>
-                <Input
-                  id="profileImageUrl"
-                  type="url"
-                  value={formData.profileImageUrl}
-                  onChange={(e) => setFormData({ ...formData, profileImageUrl: e.target.value })}
-                  placeholder="https://exemplo.com/foto.jpg"
-                />
-              </div>
+              {editingAttendant && (
+                <div className="flex justify-center">
+                  <PhotoUpload
+                    imageUrl={editingAttendant.profileImageUrl || ""}
+                    initials={getUserInitials(editingAttendant)}
+                    onUpload={async (file) => {
+                      await uploadPhotoMutation.mutateAsync({ userId: editingAttendant.id, file });
+                    }}
+                  />
+                </div>
+              )}
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar

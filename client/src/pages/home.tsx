@@ -146,17 +146,91 @@ export default function Home() {
     },
   });
 
+  const sendFileMutation = useMutation({
+    mutationFn: async ({ file, type, replyToId }: { file: File; type: string; replyToId?: string }) => {
+      if (!selectedConversationId) return;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('conversationId', selectedConversationId);
+      formData.append('type', type);
+
+      const uploadRes = await fetch('/api/upload/message-file', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadRes.ok) throw new Error('Upload failed');
+      
+      const uploadData = await uploadRes.json();
+
+      await apiRequest("POST", "/api/messages", {
+        conversationId: selectedConversationId,
+        content: uploadData.fileName || 'Arquivo',
+        type,
+        replyToId,
+        fileMetadata: {
+          url: uploadData.url,
+          fileName: uploadData.fileName,
+          fileSize: uploadData.fileSize,
+          mimeType: uploadData.mimeType,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({
+        title: "Arquivo enviado!",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao enviar arquivo",
+        description: error instanceof Error ? error.message : "Tente novamente",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleToggleLeftSidebar = () => {
     const newState = !leftSidebarCollapsed;
     setLeftSidebarCollapsed(newState);
     updateSidebarPreference.mutate(newState);
   };
 
+  const createConversationMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "pending" }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message);
+      }
+      return res.json();
+    },
+    onSuccess: (conversation) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      setSelectedConversationId(conversation.id);
+      toast({
+        title: "Conversa criada!",
+        description: "Nova conversa foi criada com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao criar conversa",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleNewConversation = () => {
-    toast({
-      title: "Em breve",
-      description: "Funcionalidade de nova conversa será implementada",
-    });
+    createConversationMutation.mutate();
   };
 
   const handleSendMessage = (content: string, replyToId?: string) => {
@@ -165,22 +239,72 @@ export default function Home() {
     sendMessageMutation.mutate({ content, replyToId: validReplyToId });
   };
 
+  const handleSendFile = (file: File, type: string, replyToId?: string) => {
+    const validReplyToId = replyingTo?.conversationId === selectedConversationId ? replyToId : undefined;
+    sendFileMutation.mutate({ file, type, replyToId: validReplyToId });
+  };
+
   const handleReply = (message: MessageWithSender) => {
     setReplyingTo(message);
   };
 
+  const forwardMessageMutation = useMutation({
+    mutationFn: async ({ messageId, conversationId }: { messageId: string; conversationId: string }) => {
+      const message = messages.find(m => m.id === messageId);
+      if (!message) throw new Error('Message not found');
+
+      await apiRequest("POST", "/api/messages", {
+        conversationId,
+        content: message.content,
+        type: message.type,
+        forwardedFromId: messageId,
+        fileMetadata: message.fileMetadata,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({
+        title: "Mensagem encaminhada!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao encaminhar mensagem",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleForward = (message: MessageWithSender) => {
-    toast({
-      title: "Em breve",
-      description: "Funcionalidade de encaminhar mensagem será implementada",
-    });
+    if (selectedConversationId) {
+      forwardMessageMutation.mutate({
+        messageId: message.id,
+        conversationId: selectedConversationId,
+      });
+    }
   };
 
-  const handleReact = (message: MessageWithSender) => {
-    toast({
-      title: "Em breve",
-      description: "Funcionalidade de reagir será implementada",
-    });
+  const reactToMessageMutation = useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      await apiRequest("POST", "/api/reactions", {
+        messageId,
+        emoji,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedConversationId] });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao adicionar reação",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleReact = (message: MessageWithSender, emoji: string) => {
+    reactToMessageMutation.mutate({ messageId: message.id, emoji });
   };
 
   const handleCancelReply = () => {
@@ -250,7 +374,8 @@ export default function Home() {
                 />
                 <MessageInput
                   onSendMessage={handleSendMessage}
-                  disabled={sendMessageMutation.isPending}
+                  onSendFile={handleSendFile}
+                  disabled={sendMessageMutation.isPending || sendFileMutation.isPending}
                   replyingTo={replyingTo}
                   onCancelReply={handleCancelReply}
                 />

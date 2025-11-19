@@ -1,10 +1,12 @@
-import { MessageSquare, LogOut } from "lucide-react";
+import { MessageSquare, LogOut, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "next-themes";
 
 export function Header() {
   const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const getUserInitials = () => {
     if (!user) return "U";
@@ -70,6 +72,15 @@ export function Header() {
                   {getUserInitials()}
                 </AvatarFallback>
               </Avatar>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="text-white hover:bg-white/20 hover-elevate active-elevate-2"
+                data-testid="button-theme-toggle"
+              >
+                {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"

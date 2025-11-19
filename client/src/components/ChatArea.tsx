@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { MessageWithSender, User } from "@shared/schema";
 import { format } from "date-fns";
@@ -12,15 +13,27 @@ interface ChatAreaProps {
   currentUser: User;
   onReply?: (message: MessageWithSender) => void;
   onForward?: (message: MessageWithSender) => void;
-  onReact?: (message: MessageWithSender) => void;
+  onReact?: (message: MessageWithSender, emoji: string) => void;
 }
+
+const QUICK_EMOJIS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
 
 export function ChatArea({ messages, currentUser, onReply, onForward, onReact }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const scrollToMessage = (messageId: string) => {
+    const element = messageRefs.current.get(messageId);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.classList.add("highlight-flash");
+      setTimeout(() => element.classList.remove("highlight-flash"), 2000);
+    }
   };
 
   useEffect(() => {
@@ -41,6 +54,64 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
     );
   }
 
+  const renderMedia = (message: MessageWithSender) => {
+    if (!message.fileMetadata?.url) return null;
+
+    switch (message.type) {
+      case 'image':
+        return (
+          <img
+            src={message.fileMetadata.url}
+            alt={message.fileMetadata.fileName || 'Image'}
+            className="max-w-sm rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+            onClick={() => window.open(message.fileMetadata!.url, '_blank')}
+          />
+        );
+      
+      case 'video':
+        return (
+          <video
+            src={message.fileMetadata.url}
+            controls
+            className="max-w-sm rounded-lg"
+          />
+        );
+      
+      case 'audio':
+        return (
+          <audio
+            src={message.fileMetadata.url}
+            controls
+            className="max-w-sm"
+          />
+        );
+      
+      case 'file':
+        return (
+          <a
+            href={message.fileMetadata.url}
+            download={message.fileMetadata.fileName}
+            className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{message.fileMetadata.fileName}</p>
+              {message.fileMetadata.fileSize && (
+                <p className="text-xs text-muted-foreground">
+                  {(message.fileMetadata.fileSize / 1024 / 1024).toFixed(2)} MB
+                </p>
+              )}
+            </div>
+          </a>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4" data-testid="chat-messages-area">
       {messages.map((message, index) => {
@@ -55,8 +126,11 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
         return (
           <div
             key={message.id}
+            ref={(el) => {
+              if (el) messageRefs.current.set(message.id, el);
+            }}
             className={cn(
-              "flex items-end gap-2 group relative",
+              "flex items-end gap-2 group relative transition-all",
               isCurrentUser ? "flex-row-reverse" : "flex-row"
             )}
             data-testid={`message-${message.id}`}
@@ -118,15 +192,33 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
                       </Button>
                     )}
                     {onReact && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        onClick={() => onReact(message)}
-                        data-testid={`button-react-${message.id}`}
-                      >
-                        <Smile className="h-4 w-4" />
-                      </Button>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            data-testid={`button-react-${message.id}`}
+                          >
+                            <Smile className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-2">
+                          <div className="flex gap-1">
+                            {QUICK_EMOJIS.map((emoji) => (
+                              <Button
+                                key={emoji}
+                                variant="ghost"
+                                size="sm"
+                                className="text-xl hover:scale-125 transition-transform"
+                                onClick={() => onReact(message, emoji)}
+                              >
+                                {emoji}
+                              </Button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     )}
                   </div>
                 )}
@@ -143,7 +235,10 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
                 >
                   {/* Replied message indicator */}
                   {isReplied && message.replyTo && (
-                    <div className="mb-2 pb-2 border-b border-border/50">
+                    <div
+                      className="mb-2 pb-2 border-b border-border/50 cursor-pointer hover:opacity-70"
+                      onClick={() => scrollToMessage(message.replyToId!)}
+                    >
                       <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
                         <Reply className="h-3 w-3" />
                         <span>Respondendo</span>
@@ -162,7 +257,27 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
                     </div>
                   )}
 
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                  {/* Media content */}
+                  {renderMedia(message)}
+
+                  {/* Text content */}
+                  {message.content && (
+                    <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                  )}
+
+                  {/* Reactions */}
+                  {message.reactions && message.reactions.length > 0 && (
+                    <div className="flex gap-1 mt-2">
+                      {message.reactions.map((reaction) => (
+                        <span
+                          key={reaction.id}
+                          className="text-sm px-2 py-0.5 bg-background/50 rounded-full"
+                        >
+                          {reaction.emoji}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               
