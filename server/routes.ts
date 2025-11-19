@@ -1070,7 +1070,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/webhooks', isAuthenticated, requireRole('admin'), async (req, res) => {
+  // Allow both admins and attendants to create webhooks
+  app.post('/api/webhooks', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
     try {
       const webhook = await storage.createWebhook(req.body);
       res.json(webhook);
@@ -1080,7 +1081,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/webhooks/:id', isAuthenticated, requireRole('admin'), async (req, res) => {
+  // Allow both admins and attendants to update webhooks
+  app.patch('/api/webhooks/:id', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
     try {
       const webhook = await storage.updateWebhook(req.params.id, req.body);
       if (!webhook) {
@@ -1134,12 +1136,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (webhook.authType === 'jwt' && webhook.jwtToken) {
         headers['Authorization'] = `Bearer ${webhook.jwtToken}`;
       }
+      // If no token provided in webhook record and a GLOBAL_API_KEY exists, use it for bearer auth
+      if (!headers['Authorization'] && process.env.GLOBAL_API_KEY) {
+        headers['Authorization'] = `Bearer ${process.env.GLOBAL_API_KEY}`;
+      }
 
-      const response = await fetch(webhook.url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(testPayload),
-      });
+      // Log test attempt for debugging
+      console.log(`[webhook:test] id=${webhook.id} url=${webhook.url}`);
+
+      // Add a timeout to the fetch so tests don't hang
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      let response;
+      try {
+        response = await fetch(webhook.url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(testPayload),
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        clearTimeout(timeout);
+        console.error('[webhook:test] fetch error:', fetchErr?.message || fetchErr);
+        return res.status(500).json({ success: false, message: `Falha ao conectar: ${fetchErr?.message || String(fetchErr)}` });
+      }
+
+      clearTimeout(timeout);
 
       const responseText = await response.text();
       let responseData;
@@ -1153,7 +1176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: response.ok,
         status: response.status,
         statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
+        headers: response.headers ? Object.fromEntries(response.headers.entries()) : {},
         data: responseData,
       });
     } catch (error: any) {
@@ -1162,6 +1185,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: error.message || 'Erro ao testar webhook',
       });
+    }
+  });
+
+  // Promote a user to admin (admin-only)
+  app.post('/api/users/:id/promote', isAuthenticated, requireRole('admin'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: 'Usuário não encontrado' });
+      }
+
+      if (user.role === 'admin') {
+        return res.json({ success: true, message: 'Usuário já é admin' });
+      }
+
+      const updated = await storage.updateUser(id, { role: 'admin' });
+      if (!updated) {
+        return res.status(500).json({ message: 'Falha ao promover usuário' });
+      }
+
+      const { password: _, resetToken, resetTokenExpiry, ...sanitized } = updated as any;
+      // Notify via WebSocket that user role changed
+      if (wsManager) {
+        const allUsers = await storage.getAllUsers();
+        const userIds = allUsers.map(u => u.id);
+        wsManager.notifyUserUpdate(sanitized, userIds);
+      }
+
+      res.json({ success: true, user: sanitized });
+    } catch (error) {
+      console.error('Error promoting user:', error);
+      res.status(500).json({ message: 'Erro ao promover usuário' });
     }
   });
 

@@ -24,14 +24,49 @@ export function generateResetToken(): string {
 }
 
 export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  // Allow session-based auth
   if (req.session && (req.session as any).userId) {
     return next();
   }
+
+  // Allow global API key via header `x-api-key` or `Authorization: Bearer <key>`
+  const globalKey = process.env.GLOBAL_API_KEY;
+  if (globalKey) {
+    const headerKey = (req.headers['x-api-key'] as string) || undefined;
+    const authHeader = (req.headers['authorization'] as string) || undefined;
+    let token: string | undefined;
+    if (headerKey) token = headerKey.trim();
+    else if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) token = authHeader.slice(7).trim();
+
+    if (token && token === globalKey) {
+      // mark request as using global key so downstream handlers can detect it if needed
+      (req as any).globalApiKey = true;
+      return next();
+    }
+  }
+
   return res.status(401).json({ message: 'Unauthorized' });
 }
 
 export function requireRole(...roles: string[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
+    // If using global API key, treat as admin
+    const globalKey = process.env.GLOBAL_API_KEY;
+    if (globalKey) {
+      const headerKey = (req.headers['x-api-key'] as string) || undefined;
+      const authHeader = (req.headers['authorization'] as string) || undefined;
+      let token: string | undefined;
+      if (headerKey) token = headerKey.trim();
+      else if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) token = authHeader.slice(7).trim();
+      if (token && token === globalKey) {
+        // global key should be considered as admin
+        if (!roles.includes('admin')) {
+          // route does not require admin specifically, but global key is powerful
+        }
+        return next();
+      }
+    }
+
     if (!req.session || !(req.session as any).userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
