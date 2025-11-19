@@ -3,6 +3,7 @@ import {
   conversations,
   messages,
   reactions,
+  webhooks,
   type User,
   type UpsertUser,
   type Conversation,
@@ -11,6 +12,8 @@ import {
   type InsertMessage,
   type Reaction,
   type InsertReaction,
+  type Webhook,
+  type InsertWebhook,
   type ConversationWithUsers,
   type MessageWithSender,
   type ReactionWithUser,
@@ -48,6 +51,13 @@ export interface IStorage {
   getReactionByUserAndMessage(userId: string, messageId: string): Promise<Reaction | undefined>;
   createReaction(reaction: InsertReaction): Promise<Reaction>;
   deleteReaction(id: string): Promise<void>;
+
+  // Webhook operations
+  getWebhooks(): Promise<Webhook[]>;
+  getWebhookById(id: string): Promise<Webhook | undefined>;
+  createWebhook(webhook: InsertWebhook): Promise<Webhook>;
+  updateWebhook(id: string, data: Partial<Webhook>): Promise<Webhook | undefined>;
+  deleteWebhook(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -55,12 +65,14 @@ export class MemStorage implements IStorage {
   private conversations: Map<string, Conversation>;
   private messages: Map<string, Message>;
   private reactions: Map<string, Reaction>;
+  private webhooks: Map<string, Webhook>;
 
   constructor() {
     this.users = new Map();
     this.conversations = new Map();
     this.messages = new Map();
     this.reactions = new Map();
+    this.webhooks = new Map();
   }
 
   // User operations
@@ -290,6 +302,41 @@ export class MemStorage implements IStorage {
 
   async deleteReaction(id: string): Promise<void> {
     this.reactions.delete(id);
+  }
+
+  // Webhook operations
+  async getWebhooks(): Promise<Webhook[]> {
+    return Array.from(this.webhooks.values());
+  }
+
+  async getWebhookById(id: string): Promise<Webhook | undefined> {
+    return this.webhooks.get(id);
+  }
+
+  async createWebhook(webhookData: InsertWebhook): Promise<Webhook> {
+    const id = randomUUID();
+    const webhook: Webhook = {
+      ...webhookData,
+      id,
+      headers: webhookData.headers || {},
+      events: webhookData.events || [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as Webhook;
+    this.webhooks.set(id, webhook);
+    return webhook;
+  }
+
+  async updateWebhook(id: string, data: Partial<Webhook>): Promise<Webhook | undefined> {
+    const webhook = this.webhooks.get(id);
+    if (!webhook) return undefined;
+    const updated = { ...webhook, ...data, updatedAt: new Date() };
+    this.webhooks.set(id, updated);
+    return updated;
+  }
+
+  async deleteWebhook(id: string): Promise<boolean> {
+    return this.webhooks.delete(id);
   }
 }
 
@@ -525,6 +572,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteReaction(id: string): Promise<void> {
     await db.delete(reactions).where(eq(reactions.id, id));
+  }
+
+  // Webhook operations
+  async getWebhooks(): Promise<Webhook[]> {
+    return await db.select().from(webhooks);
+  }
+
+  async getWebhookById(id: string): Promise<Webhook | undefined> {
+    const results = await db.select().from(webhooks).where(eq(webhooks.id, id));
+    return results[0];
+  }
+
+  async createWebhook(webhookData: InsertWebhook): Promise<Webhook> {
+    const results = await db.insert(webhooks).values(webhookData).returning();
+    return results[0];
+  }
+
+  async updateWebhook(id: string, data: Partial<Webhook>): Promise<Webhook | undefined> {
+    const results = await db
+      .update(webhooks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(webhooks.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteWebhook(id: string): Promise<boolean> {
+    const results = await db.delete(webhooks).where(eq(webhooks.id, id)).returning();
+    return results.length > 0;
   }
 }
 

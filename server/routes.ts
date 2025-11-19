@@ -20,8 +20,10 @@ import {
   insertConversationSchema,
   insertMessageSchema,
   insertReactionSchema,
+  insertWebhookSchema,
   users,
   messages,
+  webhooks,
 } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";
@@ -969,6 +971,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error seeding test data:', error);
       res.status(500).json({ message: 'Erro ao criar dados de teste' });
+    }
+  });
+
+  // Webhook routes
+  app.get('/api/webhooks', isAuthenticated, requireRole('admin'), async (req, res) => {
+    try {
+      const webhooks = await storage.getWebhooks();
+      res.json(webhooks);
+    } catch (error) {
+      console.error('Error fetching webhooks:', error);
+      res.status(500).json({ message: 'Erro ao buscar webhooks' });
+    }
+  });
+
+  app.post('/api/webhooks', isAuthenticated, requireRole('admin'), async (req, res) => {
+    try {
+      const webhook = await storage.createWebhook(req.body);
+      res.json(webhook);
+    } catch (error) {
+      console.error('Error creating webhook:', error);
+      res.status(500).json({ message: 'Erro ao criar webhook' });
+    }
+  });
+
+  app.patch('/api/webhooks/:id', isAuthenticated, requireRole('admin'), async (req, res) => {
+    try {
+      const webhook = await storage.updateWebhook(req.params.id, req.body);
+      if (!webhook) {
+        return res.status(404).json({ message: 'Webhook não encontrado' });
+      }
+      res.json(webhook);
+    } catch (error) {
+      console.error('Error updating webhook:', error);
+      res.status(500).json({ message: 'Erro ao atualizar webhook' });
+    }
+  });
+
+  app.delete('/api/webhooks/:id', isAuthenticated, requireRole('admin'), async (req, res) => {
+    try {
+      const success = await storage.deleteWebhook(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: 'Webhook não encontrado' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting webhook:', error);
+      res.status(500).json({ message: 'Erro ao deletar webhook' });
+    }
+  });
+
+  app.post('/api/webhooks/:id/test', isAuthenticated, requireRole('admin'), async (req, res) => {
+    try {
+      const webhook = await storage.getWebhookById(req.params.id);
+      if (!webhook) {
+        return res.status(404).json({ message: 'Webhook não encontrado' });
+      }
+
+      const testPayload = {
+        event: 'test.webhook',
+        timestamp: new Date().toISOString(),
+        data: {
+          applicationName: 'ChatApp',
+          version: '1.0.0',
+          environment: process.env.NODE_ENV || 'development',
+          test: true,
+        },
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(webhook.headers || {}),
+      };
+
+      if (webhook.authType === 'bearer' && webhook.apiToken) {
+        headers['Authorization'] = `Bearer ${webhook.apiToken}`;
+      } else if (webhook.authType === 'jwt' && webhook.jwtToken) {
+        headers['Authorization'] = `Bearer ${webhook.jwtToken}`;
+      }
+
+      const response = await fetch(webhook.url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(testPayload),
+      });
+
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = responseText;
+      }
+
+      res.json({
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        data: responseData,
+      });
+    } catch (error: any) {
+      console.error('Error testing webhook:', error);
+      res.status(500).json({ 
+        success: false,
+        message: error.message || 'Erro ao testar webhook',
+      });
     }
   });
 

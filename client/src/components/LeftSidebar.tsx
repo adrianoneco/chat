@@ -1,8 +1,9 @@
-import { MessageSquare, Users, UserCog, ContactRound, ChevronLeft, ChevronRight } from "lucide-react";
+import { MessageSquare, Users, UserCog, ContactRound, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LeftSidebarProps {
   collapsed: boolean;
@@ -11,12 +12,18 @@ interface LeftSidebarProps {
 
 export function LeftSidebar({ collapsed, onToggleCollapse }: LeftSidebarProps) {
   const [location, setLocation] = useLocation();
+  const { user } = useAuth();
 
   const menuItems = [
     { icon: MessageSquare, label: "Conversas", path: "/" },
     { icon: UserCog, label: "Atendentes", path: "/attendants" },
     { icon: ContactRound, label: "Contatos", path: "/contacts" },
   ];
+
+  // Add settings menu item for admin users
+  if (user?.role === "admin") {
+    menuItems.push({ icon: Settings, label: "Configurações", path: "/settings/webhooks" });
+  }
 
   return (
     <aside
@@ -31,7 +38,9 @@ export function LeftSidebar({ collapsed, onToggleCollapse }: LeftSidebarProps) {
           <div className="flex flex-col gap-1">
             {menuItems.map((item, index) => {
               const Icon = item.icon;
-              const isActive = location === item.path || (item.path === "/" && location.startsWith("/conversations/"));
+              const isActive = location === item.path || 
+                (item.path === "/" && location.startsWith("/conversations/")) ||
+                (item.path.startsWith("/settings") && location.startsWith("/settings"));
               const button = (
                 <Button
                   key={index}

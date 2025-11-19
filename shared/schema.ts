@@ -184,3 +184,46 @@ export type MessageWithSender = Message & {
 export type ReactionWithUser = Reaction & {
   user: User;
 };
+
+// Webhook event categories
+export const webhookEventCategories = {
+  conversations: [
+    "conversation.created",
+    "conversation.assigned",
+    "conversation.closed",
+  ],
+  messages: [
+    "message.sent",
+    "message.received",
+    "message.deleted",
+  ],
+  users: [
+    "user.created",
+    "user.updated",
+    "user.deleted",
+  ],
+} as const;
+
+// Webhooks table
+export const webhooks = pgTable("webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  url: varchar("url").notNull(),
+  apiToken: varchar("api_token"),
+  jwtToken: text("jwt_token"),
+  authType: varchar("auth_type").$type<"none" | "bearer" | "jwt">().notNull().default("none"),
+  headers: jsonb("headers").$type<Record<string, string>>().default({}),
+  events: text("events").array().notNull().default([]),
+  isActive: varchar("is_active").notNull().default("true"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWebhookSchema = createInsertSchema(webhooks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
+export type Webhook = typeof webhooks.$inferSelect;
