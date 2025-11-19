@@ -32,7 +32,6 @@ function ProtectedRoutes() {
           <Route path="/campaigns" component={Campaigns} />
           <Route path="/reports" component={Reports} />
           <Route path="/settings/:rest*" component={Settings} />
-          <Route path="/" component={Home} />
           <Route component={NotFound} />
         </Switch>
       </AppLayout>
@@ -60,7 +59,10 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       {isFullyAuthenticated ? (
-        <Route component={ProtectedRoutes} />
+        <>
+          <Route path="/" component={() => { window.location.href = "/conversations"; return null; }} />
+          <Route component={ProtectedRoutes} />
+        </>
       ) : (
         <>
           <Route path="/" component={Landing} />

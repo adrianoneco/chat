@@ -14,6 +14,7 @@ import { ChatArea } from "@/components/ChatArea";
 import { MessageInput } from "@/components/MessageInput";
 import { ConversationDetailsSidebar } from "@/components/ConversationDetailsSidebar";
 import { ForwardMessageModal } from "@/components/ForwardMessageModal";
+import TransferConversationModal from "@/components/TransferConversationModal";
 import { cn } from "@/lib/utils";
 import type { ConversationWithUsers, MessageWithSender, User } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +35,8 @@ export default function Home() {
   const [forwardModalOpen, setForwardModalOpen] = useState(false);
   const [messageToForward, setMessageToForward] = useState<MessageWithSender | null>(null);
   const [optimisticMessage, setOptimisticMessage] = useState<MessageWithSender | null>(null);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferTargetConversationId, setTransferTargetConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (conversationIdFromRoute) {
@@ -553,11 +556,15 @@ export default function Home() {
   };
 
   const handleTransferConversation = (conversationId: string) => {
-    // TODO: Show a dialog to select attendant
-    toast({
-      title: "Transferir conversa",
-      description: "Funcionalidade em desenvolvimento",
-    });
+    setTransferTargetConversationId(conversationId);
+    setTransferModalOpen(true);
+  };
+
+  const handlePerformTransfer = (attendantId: string) => {
+    if (!transferTargetConversationId) return;
+    transferConversationMutation.mutate({ conversationId: transferTargetConversationId, attendantId });
+    setTransferModalOpen(false);
+    setTransferTargetConversationId(null);
   };
 
   const handleCancelReply = () => {
@@ -687,6 +694,11 @@ export default function Home() {
         onOpenChange={handleForwardModalClose}
         conversations={conversations.filter(c => c.id !== messageToForward?.conversationId)}
         onForward={handleForwardToConversations}
+      />
+      <TransferConversationModal
+        open={transferModalOpen}
+        onOpenChange={(v) => setTransferModalOpen(v)}
+        onTransfer={handlePerformTransfer}
       />
     </div>
   );
