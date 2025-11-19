@@ -38,7 +38,7 @@ export function Header() {
     <header
       className="fixed top-0 left-0 right-0 h-16 z-50"
       style={{
-        background: "linear-gradient(135deg, #1e3a8a 0%, #581c87 100%)",
+        background: "linear-gradient(135deg, #4c1d95 0%, #581c87 100%)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}

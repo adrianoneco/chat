@@ -49,7 +49,7 @@ export default function ForgotPassword() {
     <div
       className="min-h-screen flex items-center justify-center p-4"
       style={{
-        background: "linear-gradient(135deg, #1e3a8a 0%, #581c87 100%)",
+        background: "linear-gradient(135deg, #4c1d95 0%, #581c87 100%)",
       }}
     >
       <Card className="w-full max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white">

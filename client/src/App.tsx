@@ -22,10 +22,11 @@ function ProtectedRoutes() {
     <WebSocketProvider>
       <AppLayout>
         <Switch>
-          <Route path="/" component={Home} />
+          <Route path="/conversations" component={Home} />
+          <Route path="/conversations/:id" component={Home} />
           <Route path="/attendants" component={Attendants} />
           <Route path="/contacts" component={Contacts} />
-          <Route path="/conversations/:id" component={Home} />
+          <Route path="/" component={Home} />
           <Route component={NotFound} />
         </Switch>
       </AppLayout>

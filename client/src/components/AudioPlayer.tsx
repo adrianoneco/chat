@@ -104,40 +104,39 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
   const albumArtUrl = initialMetadata?.coverArt;
 
   return (
-    <div className={cn("flex gap-3 p-3 bg-muted/50 rounded-lg max-w-2xl", className)}>
+    <div className={cn("flex flex-col gap-3 p-4 bg-muted/50 rounded-lg min-w-[320px]", className)}>
       <audio ref={audioRef} src={src} />
       
-      {/* Album art or fallback */}
-      <div className="flex-shrink-0">
-        {albumArtUrl ? (
-          <img
-            src={albumArtUrl}
-            alt="Album art"
-            className="w-20 h-20 rounded object-cover"
-          />
-        ) : (
-          <div className="w-20 h-20 rounded bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <svg
-              className="w-10 h-10 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-              />
-            </svg>
-          </div>
-        )}
-      </div>
+      <div className="flex gap-3">
+        {/* Album art or fallback */}
+        <div className="flex-shrink-0">
+          {albumArtUrl ? (
+            <img
+              src={albumArtUrl}
+              alt="Album art"
+              className="w-24 h-24 rounded object-cover"
+            />
+          ) : (
+            <div className="w-24 h-24 rounded bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <svg
+                className="w-12 h-12 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+                />
+              </svg>
+            </div>
+          )}
+        </div>
 
-      {/* Audio info and controls */}
-      <div className="flex-1 min-w-0 flex flex-col gap-2">
-        {/* Title, artist, album */}
-        <div className="flex flex-col gap-0.5 min-w-0">
+        {/* Audio info */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
           <p className="text-sm font-medium truncate" title={displayTitle}>
             {displayTitle}
           </p>
@@ -149,38 +148,39 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
           </p>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-2">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            onClick={togglePlay}
-          >
-            {isPlaying ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-          </Button>
+        {/* Play/Pause button */}
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={togglePlay}
+          data-testid="button-audio-play-pause"
+        >
+          {isPlaying ? (
+            <Pause className="h-5 w-5" />
+          ) : (
+            <Play className="h-5 w-5" />
+          )}
+        </Button>
+      </div>
 
-          {/* Progress bar */}
-          <div className="flex-1 flex items-center gap-2">
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {formatTime(currentTime)}
-            </span>
-            <Slider
-              value={[currentTime]}
-              min={0}
-              max={duration || 100}
-              step={0.1}
-              onValueChange={handleProgressChange}
-              className="flex-1 [&_[role=slider]]:hidden"
-            />
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {formatTime(duration)}
-            </span>
-          </div>
+      {/* Progress bar - full width */}
+      <div className="flex flex-col gap-1">
+        <Slider
+          value={[currentTime]}
+          min={0}
+          max={duration || 100}
+          step={0.1}
+          onValueChange={handleProgressChange}
+          className="w-full [&_[role=slider]]:hidden"
+          data-testid="slider-audio-progress"
+        />
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-muted-foreground tabular-nums" data-testid="text-audio-current-time">
+            {formatTime(currentTime)}
+          </span>
+          <span className="text-xs text-muted-foreground tabular-nums" data-testid="text-audio-duration">
+            {formatTime(duration)}
+          </span>
         </div>
       </div>
     </div>

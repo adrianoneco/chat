@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { MessageWithSender, User } from "@shared/schema";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Reply, Forward, Smile } from "lucide-react";
+import { Reply, Forward, Smile, Image as ImageIcon, Video, Mic, FileText } from "lucide-react";
 import { AudioPlayer } from "./AudioPlayer";
 import { VideoPlayer } from "./VideoPlayer";
 
@@ -55,6 +55,36 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
       </div>
     );
   }
+
+  const getMediaIcon = (type: string) => {
+    switch (type) {
+      case 'image':
+        return <ImageIcon className="h-3 w-3" />;
+      case 'video':
+        return <Video className="h-3 w-3" />;
+      case 'audio':
+        return <Mic className="h-3 w-3" />;
+      case 'file':
+        return <FileText className="h-3 w-3" />;
+      default:
+        return null;
+    }
+  };
+
+  const getMediaLabel = (type: string) => {
+    switch (type) {
+      case 'image':
+        return 'Imagem';
+      case 'video':
+        return 'Vídeo';
+      case 'audio':
+        return 'Áudio';
+      case 'file':
+        return 'Arquivo';
+      default:
+        return '';
+    }
+  };
 
   const renderMedia = (message: MessageWithSender) => {
     if (!message.fileMetadata?.url) return null;
@@ -158,7 +188,7 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
 
             <div
               className={cn(
-                "flex flex-col gap-1 max-w-[70%] relative",
+                "flex flex-col gap-1 max-w-full md:max-w-[70%] relative",
                 isCurrentUser ? "items-end" : "items-start"
               )}
             >
@@ -246,12 +276,28 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact }:
                     <div
                       className="mb-2 pb-2 border-b border-border/50 cursor-pointer hover:opacity-70"
                       onClick={() => scrollToMessage(message.replyToId!)}
+                      data-testid={`reply-preview-${message.id}`}
                     >
                       <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
                         <Reply className="h-3 w-3" />
-                        <span>Respondendo</span>
+                        <span className="font-medium">Resposta</span>
                       </div>
-                      <p className="text-xs opacity-70 truncate">
+                      <div className="flex items-start gap-2">
+                        {message.replyTo.type !== 'text' && (
+                          <div className="flex items-center gap-1 text-xs opacity-70">
+                            {getMediaIcon(message.replyTo.type)}
+                            <span>{getMediaLabel(message.replyTo.type)}</span>
+                          </div>
+                        )}
+                        {message.replyTo.type === 'image' && message.replyTo.fileMetadata?.url && (
+                          <img
+                            src={message.replyTo.fileMetadata.url}
+                            alt="Preview"
+                            className="w-12 h-12 rounded object-cover"
+                          />
+                        )}
+                      </div>
+                      <p className="text-xs opacity-70 truncate mt-1">
                         {message.replyTo.content}
                       </p>
                     </div>
