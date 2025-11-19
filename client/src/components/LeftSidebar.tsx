@@ -1,7 +1,8 @@
-import { MessageSquare, Settings, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { MessageSquare, Users, UserCog, ContactRound, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useLocation } from "wouter";
 
 interface LeftSidebarProps {
   collapsed: boolean;
@@ -9,10 +10,12 @@ interface LeftSidebarProps {
 }
 
 export function LeftSidebar({ collapsed, onToggleCollapse }: LeftSidebarProps) {
+  const [location, setLocation] = useLocation();
+
   const menuItems = [
-    { icon: MessageSquare, label: "Conversas", active: true },
-    { icon: Users, label: "Usuários", active: false },
-    { icon: Settings, label: "Configurações", active: false },
+    { icon: MessageSquare, label: "Conversas", path: "/" },
+    { icon: UserCog, label: "Atendentes", path: "/attendants" },
+    { icon: ContactRound, label: "Contatos", path: "/contacts" },
   ];
 
   return (
@@ -28,15 +31,17 @@ export function LeftSidebar({ collapsed, onToggleCollapse }: LeftSidebarProps) {
           <div className="flex flex-col gap-1">
             {menuItems.map((item, index) => {
               const Icon = item.icon;
+              const isActive = location === item.path || (item.path === "/" && location.startsWith("/conversations/"));
               const button = (
                 <Button
                   key={index}
-                  variant={item.active ? "secondary" : "ghost"}
+                  variant={isActive ? "secondary" : "ghost"}
                   className={cn(
                     "justify-start gap-3 h-12",
                     collapsed ? "justify-center px-0" : "px-4",
-                    item.active && "bg-sidebar-accent"
+                    isActive && "bg-sidebar-accent"
                   )}
+                  onClick={() => setLocation(item.path)}
                   data-testid={`button-menu-${item.label.toLowerCase()}`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />

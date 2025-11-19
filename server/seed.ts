@@ -1,60 +1,79 @@
 import { db } from "./db";
 import { users, conversations, messages } from "@shared/schema";
+import { hashPassword } from "./auth";
 
 async function seed() {
   console.log("🌱 Iniciando seed do banco de dados...");
 
   try {
+    const defaultPassword = await hashPassword("senha123");
+
     // Criar usuários de teste
     const testUsers = await db.insert(users).values([
       {
         id: "user-client-1",
         email: "cliente1@exemplo.com",
+        password: defaultPassword,
         firstName: "João",
         lastName: "Silva",
-        profileImageUrl: null,
+        profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=joao",
         role: "client",
         sidebarCollapsed: "false",
+        resetToken: null,
+        resetTokenExpiry: null,
       },
       {
         id: "user-client-2",
         email: "cliente2@exemplo.com",
+        password: defaultPassword,
         firstName: "Maria",
         lastName: "Santos",
-        profileImageUrl: null,
+        profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=maria",
         role: "client",
         sidebarCollapsed: "false",
+        resetToken: null,
+        resetTokenExpiry: null,
       },
       {
         id: "user-attendant-1",
         email: "atendente1@exemplo.com",
+        password: defaultPassword,
         firstName: "Carlos",
         lastName: "Oliveira",
-        profileImageUrl: null,
+        profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=carlos",
         role: "attendant",
         sidebarCollapsed: "false",
+        resetToken: null,
+        resetTokenExpiry: null,
       },
       {
         id: "user-attendant-2",
         email: "atendente2@exemplo.com",
+        password: defaultPassword,
         firstName: "Ana",
         lastName: "Costa",
-        profileImageUrl: null,
+        profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=ana",
         role: "attendant",
         sidebarCollapsed: "false",
+        resetToken: null,
+        resetTokenExpiry: null,
       },
       {
         id: "user-admin-1",
         email: "admin@exemplo.com",
+        password: defaultPassword,
         firstName: "Roberto",
         lastName: "Ferreira",
-        profileImageUrl: null,
+        profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=roberto",
         role: "admin",
         sidebarCollapsed: "false",
+        resetToken: null,
+        resetTokenExpiry: null,
       },
     ]).returning();
 
     console.log(`✅ Criados ${testUsers.length} usuários de teste`);
+    console.log(`📝 Todos os usuários têm senha: senha123`);
 
     // Criar conversas de teste
     const testConversations = await db.insert(conversations).values([

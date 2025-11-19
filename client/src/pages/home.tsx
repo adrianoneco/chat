@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -17,10 +18,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Home() {
   const { toast } = useToast();
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
+  const params = useParams();
+  const conversationIdFromRoute = params.id;
 
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(true);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>();
+  const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>(conversationIdFromRoute);
+
+  useEffect(() => {
+    if (conversationIdFromRoute) {
+      setSelectedConversationId(conversationIdFromRoute);
+    }
+  }, [conversationIdFromRoute]);
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
@@ -30,7 +39,7 @@ export default function Home() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/login";
       }, 500);
     }
   }, [isAuthenticated, isAuthLoading, toast]);
@@ -65,7 +74,7 @@ export default function Home() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
       }
     },
@@ -92,7 +101,7 @@ export default function Home() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }

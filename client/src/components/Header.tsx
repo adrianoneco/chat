@@ -22,10 +22,21 @@ export function Header() {
     return labels[role as keyof typeof labels] || role;
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Error logging out:", error);
+      window.location.href = "/login";
+    }
+  };
+
   return (
     <header
-      className="fixed top-0 left-0 right-0 h-16 z-50 bg-gradient-to-b from-gradient-blue to-gradient-purple"
+      className="fixed top-0 left-0 right-0 h-16 z-50"
       style={{
+        background: "linear-gradient(135deg, #1e3a8a 0%, #581c87 100%)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}
@@ -62,7 +73,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => (window.location.href = "/api/logout")}
+                onClick={handleLogout}
                 className="text-white hover:bg-white/20 hover-elevate active-elevate-2"
                 data-testid="button-logout"
               >
