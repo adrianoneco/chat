@@ -98,10 +98,14 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  const hasMetadata = initialMetadata?.title || initialMetadata?.artist || initialMetadata?.album;
   const displayTitle = initialMetadata?.title || fileName || "Áudio";
-  const displayArtist = initialMetadata?.artist || "Artista desconhecido";
-  const displayAlbum = initialMetadata?.album || "Álbum desconhecido";
+  const displayArtist = initialMetadata?.artist;
+  const displayAlbum = initialMetadata?.album;
   const albumArtUrl = initialMetadata?.coverArt;
+  
+  // Detecta se é gravação de voz (baseado no nome do arquivo ou ausência de metadados)
+  const isVoiceRecording = fileName?.startsWith('audio-') || (!hasMetadata && fileName?.includes('.webm'));
 
   return (
     <div className={cn("flex flex-col gap-3 p-4 bg-muted/50 rounded-lg min-w-[320px]", className)}>
@@ -118,34 +122,62 @@ export function AudioPlayer({ src, fileName, metadata: initialMetadata, classNam
             />
           ) : (
             <div className="w-24 h-24 rounded bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <svg
-                className="w-12 h-12 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-                />
-              </svg>
+              {isVoiceRecording ? (
+                <svg
+                  className="w-12 h-12 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="w-12 h-12 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+                  />
+                </svg>
+              )}
             </div>
           )}
         </div>
 
         {/* Audio info */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          <p className="text-sm font-medium truncate" title={displayTitle}>
-            {displayTitle}
-          </p>
-          <p className="text-xs text-muted-foreground truncate" title={displayArtist}>
-            {displayArtist}
-          </p>
-          <p className="text-xs text-muted-foreground truncate" title={displayAlbum}>
-            {displayAlbum}
-          </p>
+        <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center">
+          {hasMetadata ? (
+            <>
+              <p className="text-sm font-medium truncate" title={displayTitle}>
+                {displayTitle}
+              </p>
+              {displayArtist && (
+                <p className="text-xs text-muted-foreground truncate" title={displayArtist}>
+                  {displayArtist}
+                </p>
+              )}
+              {displayAlbum && (
+                <p className="text-xs text-muted-foreground truncate" title={displayAlbum}>
+                  {displayAlbum}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm font-medium truncate" title={displayTitle}>
+              {isVoiceRecording ? "Mensagem de Voz" : displayTitle}
+            </p>
+          )}
         </div>
 
         {/* Play/Pause button */}
