@@ -479,6 +479,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Seed route for test data (development only)
+  app.post('/api/seed/test-data', async (req, res) => {
+    if (process.env.NODE_ENV !== 'development') {
+      return res.status(403).json({ message: 'Apenas disponível em desenvolvimento' });
+    }
+
+    try {
+      // Create attendants
+      const attendants = [
+        {
+          email: 'ana.silva@chatapp.com',
+          password: await hashPassword('senha123'),
+          firstName: 'Ana',
+          lastName: 'Silva',
+          role: 'attendant' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+        {
+          email: 'carlos.santos@chatapp.com',
+          password: await hashPassword('senha123'),
+          firstName: 'Carlos',
+          lastName: 'Santos',
+          role: 'attendant' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+        {
+          email: 'maria.oliveira@chatapp.com',
+          password: await hashPassword('senha123'),
+          firstName: 'Maria',
+          lastName: 'Oliveira',
+          role: 'attendant' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+      ];
+
+      // Create clients (contacts)
+      const clients = [
+        {
+          email: 'joao.cliente@email.com',
+          password: await hashPassword('senha123'),
+          firstName: 'João',
+          lastName: 'Pereira',
+          role: 'client' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+        {
+          email: 'fernanda.costa@email.com',
+          password: await hashPassword('senha123'),
+          firstName: 'Fernanda',
+          lastName: 'Costa',
+          role: 'client' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+        {
+          email: 'pedro.alves@email.com',
+          password: await hashPassword('senha123'),
+          firstName: 'Pedro',
+          lastName: 'Alves',
+          role: 'client' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+        {
+          email: 'juliana.souza@email.com',
+          password: await hashPassword('senha123'),
+          firstName: 'Juliana',
+          lastName: 'Souza',
+          role: 'client' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+        {
+          email: 'ricardo.lima@email.com',
+          password: await hashPassword('senha123'),
+          firstName: 'Ricardo',
+          lastName: 'Lima',
+          role: 'client' as const,
+          sidebarCollapsed: 'false',
+          profileImageUrl: null,
+          resetToken: null,
+          resetTokenExpiry: null,
+        },
+      ];
+
+      const createdAttendants = [];
+      const createdClients = [];
+
+      // Check and create attendants
+      for (const attendant of attendants) {
+        const existing = await storage.getUserByEmail(attendant.email);
+        if (!existing) {
+          const created = await storage.createUser(attendant);
+          createdAttendants.push(created);
+        }
+      }
+
+      // Check and create clients
+      for (const client of clients) {
+        const existing = await storage.getUserByEmail(client.email);
+        if (!existing) {
+          const created = await storage.createUser(client);
+          createdClients.push(created);
+        }
+      }
+
+      res.json({
+        message: 'Dados de teste criados com sucesso',
+        created: {
+          attendants: createdAttendants.length,
+          clients: createdClients.length,
+        },
+        credentials: {
+          attendants: 'ana.silva@chatapp.com / carlos.santos@chatapp.com / maria.oliveira@chatapp.com',
+          clients: 'joao.cliente@email.com / fernanda.costa@email.com / pedro.alves@email.com / juliana.souza@email.com / ricardo.lima@email.com',
+          password: 'senha123',
+        },
+      });
+    } catch (error) {
+      console.error('Error seeding test data:', error);
+      res.status(500).json({ message: 'Erro ao criar dados de teste' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
