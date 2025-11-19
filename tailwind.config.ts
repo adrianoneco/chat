@@ -80,6 +80,12 @@ export default {
           away: "rgb(245 158 11)",
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
+          pending: "rgb(59 130 246)",
+          attending: "rgb(251 146 60)",
+        },
+        gradient: {
+          blue: "rgb(59 130 246)",
+          purple: "rgb(168 85 247)",
         },
       },
       fontFamily: {
