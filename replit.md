@@ -58,8 +58,15 @@ ChatApp é um sistema completo de atendimento via chat com autenticação multi-
 - Espaçamento: sistema consistente (4, 8, 12, 16, 20px)
 - Todos os textos em português brasileiro
 
-## Roadmap (Próxima Fase)
-- MinIO S3 para armazenamento de arquivos
-- Redis para cache e sessões em tempo real
+## Armazenamento
+- Arquivos salvos localmente em `./data` com pastas separadas:
+  - `./data/images` - Imagens de mensagens
+  - `./data/audio` - Áudios de mensagens
+  - `./data/video` - Vídeos de mensagens
+  - `./data/files` - Outros arquivos
+  - `./data/profiles` - Fotos de perfil
+
+## Recursos Implementados
 - WebSocket para chat em tempo real
 - Upload de áudio/vídeo/imagens
+- Sessões com express-session e MemoryStore
