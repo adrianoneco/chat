@@ -123,7 +123,20 @@ export function MessageInput({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
     const file = e.target.files?.[0];
     if (file && onSendFile) {
-      onSendFile(file, type, replyingTo?.id);
+      // Auto-detect file type based on MIME type
+      let detectedType = type;
+      
+      if (type === 'file') {
+        if (file.type.startsWith('audio/')) {
+          detectedType = 'audio';
+        } else if (file.type.startsWith('image/')) {
+          detectedType = 'image';
+        } else if (file.type.startsWith('video/')) {
+          detectedType = 'video';
+        }
+      }
+      
+      onSendFile(file, detectedType, replyingTo?.id);
     }
     e.target.value = '';
   };

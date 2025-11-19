@@ -12,6 +12,7 @@ import { ConversationList } from "@/components/ConversationList";
 import { ChatArea } from "@/components/ChatArea";
 import { MessageInput } from "@/components/MessageInput";
 import { ConversationDetailsSidebar } from "@/components/ConversationDetailsSidebar";
+import { ForwardMessageModal } from "@/components/ForwardMessageModal";
 import { cn } from "@/lib/utils";
 import type { ConversationWithUsers, MessageWithSender, User } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +30,8 @@ export default function Home() {
   const [uploadProgress, setUploadProgress] = useState<number | undefined>(undefined);
   const [uploadFileName, setUploadFileName] = useState<string | undefined>(undefined);
   const [uploadAbortController, setUploadAbortController] = useState<AbortController | null>(null);
+  const [forwardModalOpen, setForwardModalOpen] = useState(false);
+  const [messageToForward, setMessageToForward] = useState<MessageWithSender | null>(null);
 
   useEffect(() => {
     if (conversationIdFromRoute) {
@@ -338,11 +341,30 @@ export default function Home() {
   });
 
   const handleForward = (message: MessageWithSender) => {
-    if (selectedConversationId) {
+    setMessageToForward(message);
+    setForwardModalOpen(true);
+  };
+
+  const handleForwardToConversations = (conversationIds: string[]) => {
+    if (!messageToForward) return;
+
+    const sourceConversationId = messageToForward.conversationId;
+    const filteredIds = conversationIds.filter(id => id !== sourceConversationId);
+
+    filteredIds.forEach((conversationId) => {
       forwardMessageMutation.mutate({
-        messageId: message.id,
-        conversationId: selectedConversationId,
+        messageId: messageToForward.id,
+        conversationId,
       });
+    });
+
+    setMessageToForward(null);
+  };
+
+  const handleForwardModalClose = (open: boolean) => {
+    setForwardModalOpen(open);
+    if (!open) {
+      setMessageToForward(null);
     }
   };
 
@@ -444,8 +466,8 @@ export default function Home() {
                   onCancelUpload={() => {
                     if (uploadAbortController) {
                       uploadAbortController.abort();
-                      setUploadProgress(null);
-                      setUploadFileName(null);
+                      setUploadProgress(undefined);
+                      setUploadFileName(undefined);
                       setUploadAbortController(null);
                     }
                   }}
@@ -471,6 +493,13 @@ export default function Home() {
         collapsed={rightSidebarCollapsed}
         onToggleCollapse={() => setRightSidebarCollapsed(!rightSidebarCollapsed)}
         previousConversations={2}
+      />
+
+      <ForwardMessageModal
+        open={forwardModalOpen}
+        onOpenChange={handleForwardModalClose}
+        conversations={conversations.filter(c => c.id !== messageToForward?.conversationId)}
+        onForward={handleForwardToConversations}
       />
     </div>
   );
