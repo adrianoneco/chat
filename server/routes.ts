@@ -6,8 +6,11 @@ import createMemoryStore from "memorystore";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
+import fsSync from "fs";
 import sharp from "sharp";
 import { parseBuffer } from "music-metadata";
+import axios from "axios";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateResetToken, isAuthenticated, requireRole } from "./auth";
 import { correctText, generateReadyMessage } from "./groq";
@@ -1707,99 +1710,281 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Canal não encontrado ou inativo' });
       }
 
-      // Handle different event types from EvolutionAPI
-      if (data.event === 'messages.upsert') {
-        const message = data.data;
-        
-        // Only process incoming messages (not from us)
-        if (!message.key.fromMe && message.message) {
-          const phoneNumber = message.key.remoteJid.replace('@s.whatsapp.net', '');
-          
-          // Find or create client by phone number (using email as phoneNumber@whatsapp for now)
-          let client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
-          let isNewClient = false;
-          
-          if (!client) {
-            // Create new client
-            client = await storage.createUser({
-              email: `${phoneNumber}@whatsapp`,
-              password: await hashPassword('whatsapp-user'),
-              firstName: message.pushName || phoneNumber,
-              lastName: '',
-              role: 'client',
-              sidebarCollapsed: 'false',
-              profileImageUrl: null,
-              resetToken: null,
-              resetTokenExpiry: null,
-            });
-            isNewClient = true;
-          }
-          
-          // Trigger webhooks for new user/contact if client was just created
-          if (isNewClient && client) {
-            const { password, resetToken, resetTokenExpiry, ...clientWithoutPassword } = client;
-            triggerWebhook('user.created', clientWithoutPassword);
-            triggerWebhook('contact.created', clientWithoutPassword);
-          }
+      // Log received event for debugging
+      console.log('[Evolution API] Received webhook event:', data.event, 'for instance:', instanceId);
 
-          // Find or create conversation
-          const conversations = await storage.getConversations(client.id);
-          let conversation = conversations.find(c => c.status !== 'closed');
-          let isNewConversation = false;
+      // Handle different event types from EvolutionAPI
+      switch (data.event) {
+        case 'messages.upsert':
+        case 'MESSAGES_UPSERT': {
+          const message = data.data;
           
-          if (!conversation) {
-            const newConv = await storage.createConversation({
-              clientId: client.id,
-              status: 'pending',
-            });
-            conversation = await storage.getConversation(newConv.id);
-            isNewConversation = true;
+          // Only process incoming messages (not from us)
+          if (!message.key.fromMe && message.message) {
+            const phoneNumber = message.key.remoteJid.replace('@s.whatsapp.net', '');
             
-            // Trigger webhook for new conversation
-            if (conversation) {
-              triggerWebhook('conversation.created', conversation);
+            // Find or create client by phone number (using email as phoneNumber@whatsapp for now)
+            let client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+            let isNewClient = false;
+            
+            if (!client) {
+              // Create new client
+              client = await storage.createUser({
+                email: `${phoneNumber}@whatsapp`,
+                password: await hashPassword('whatsapp-user'),
+                firstName: message.pushName || phoneNumber,
+                lastName: '',
+                role: 'client',
+                sidebarCollapsed: 'false',
+                profileImageUrl: null,
+                resetToken: null,
+                resetTokenExpiry: null,
+              });
+              isNewClient = true;
+            }
+            
+            // Trigger webhooks for new user/contact if client was just created
+            if (isNewClient && client) {
+              const { password, resetToken, resetTokenExpiry, ...clientWithoutPassword } = client;
+              triggerWebhook('user.created', clientWithoutPassword);
+              triggerWebhook('contact.created', clientWithoutPassword);
+            }
+
+            // Find or create conversation
+            const conversations = await storage.getConversations(client.id);
+            let conversation = conversations.find(c => c.status !== 'closed');
+            let isNewConversation = false;
+            
+            if (!conversation) {
+              const newConv = await storage.createConversation({
+                clientId: client.id,
+                status: 'pending',
+              });
+              conversation = await storage.getConversation(newConv.id);
+              isNewConversation = true;
+              
+              // Trigger webhook for new conversation
+              if (conversation) {
+                triggerWebhook('conversation.created', conversation);
+                
+                // Send WebSocket notification
+                if (wsManager) {
+                  const participantIds = [conversation.clientId];
+                  if (conversation.attendantId) participantIds.push(conversation.attendantId);
+                  wsManager.notifyNewConversation(conversation, participantIds);
+                }
+              }
+            }
+
+            // Extract message content, type, and media metadata
+            let messageContent = '';
+            let messageType: 'text' | 'image' | 'audio' | 'video' | 'file' = 'text';
+            let mediaMetadata: any = null;
+            
+            // Check each message type (not exclusive - some may have multiple)
+            if (message.message.conversation) {
+              messageContent = message.message.conversation;
+              messageType = 'text';
+            } else if (message.message.extendedTextMessage) {
+              messageContent = message.message.extendedTextMessage.text;
+              messageType = 'text';
+            } else if (message.message.imageMessage) {
+              messageContent = message.message.imageMessage.caption || 'Imagem recebida';
+              messageType = 'image';
+              mediaMetadata = {
+                mimetype: message.message.imageMessage.mimetype,
+                fileLength: message.message.imageMessage.fileLength,
+                messageId: message.key.id
+              };
+            } else if (message.message.audioMessage) {
+              messageContent = 'Áudio recebido';
+              messageType = 'audio';
+              mediaMetadata = {
+                mimetype: message.message.audioMessage.mimetype,
+                fileLength: message.message.audioMessage.fileLength,
+                seconds: message.message.audioMessage.seconds,
+                messageId: message.key.id
+              };
+            } else if (message.message.videoMessage) {
+              messageContent = message.message.videoMessage.caption || 'Vídeo recebido';
+              messageType = 'video';
+              mediaMetadata = {
+                mimetype: message.message.videoMessage.mimetype,
+                fileLength: message.message.videoMessage.fileLength,
+                seconds: message.message.videoMessage.seconds,
+                messageId: message.key.id
+              };
+            } else if (message.message.documentMessage) {
+              messageContent = message.message.documentMessage.fileName || 'Arquivo recebido';
+              messageType = 'file';
+              mediaMetadata = {
+                mimetype: message.message.documentMessage.mimetype,
+                fileLength: message.message.documentMessage.fileLength,
+                fileName: message.message.documentMessage.fileName,
+                messageId: message.key.id
+              };
+            } else {
+              // Unknown message type - log it
+              console.log('[Evolution API] Unknown message type received:', Object.keys(message.message));
+            }
+
+            // Download media file if present
+            if (mediaMetadata && channel.apiUrl && channel.apiKey) {
+              try {
+                console.log('[Evolution API] Downloading media file from:', `${channel.apiUrl}/message/media/${instanceId}/${mediaMetadata.messageId}`);
+
+                // Download media from Evolution API
+                const mediaResponse = await axios.get(
+                  `${channel.apiUrl}/message/media/${instanceId}/${mediaMetadata.messageId}`,
+                  {
+                    headers: {
+                      'apikey': channel.apiKey
+                    },
+                    responseType: 'arraybuffer'
+                  }
+                );
+
+                // Generate unique filename
+                const ext = mediaMetadata.mimetype ? mediaMetadata.mimetype.split('/')[1] : 'bin';
+                const filename = `${crypto.randomUUID()}.${ext}`;
+                const dirPath = path.join(process.cwd(), 'data', messageType === 'file' ? 'files' : messageType);
+                const filePath = path.join(dirPath, filename);
+
+                // Create directory if it doesn't exist
+                if (!fsSync.existsSync(dirPath)) {
+                  fsSync.mkdirSync(dirPath, { recursive: true });
+                }
+
+                // Save file
+                fsSync.writeFileSync(filePath, mediaResponse.data);
+
+                // Update message content with file path
+                mediaMetadata.localPath = `/data/${messageType === 'file' ? 'files' : messageType}/${filename}`;
+                mediaMetadata.url = `/uploads/${messageType}/${filename}`;
+                
+                console.log('[Evolution API] Media file downloaded and saved:', filePath);
+              } catch (error: any) {
+                console.error('[Evolution API] Error downloading media file:', error.message || error);
+                // Continue without media file - at least save the message
+              }
+            } else if (mediaMetadata) {
+              console.warn('[Evolution API] Cannot download media - missing apiUrl or apiKey for channel');
+            }
+
+            // Create message in the system if we have content and a conversation
+            if (messageContent && conversation) {
+              const messageData: any = {
+                conversationId: conversation.id,
+                senderId: client.id,
+                content: messageContent,
+                type: messageType,
+              };
+
+              // Add file metadata if media was downloaded
+              if (mediaMetadata && mediaMetadata.url) {
+                messageData.fileMetadata = {
+                  fileName: mediaMetadata.fileName || 'media',
+                  fileSize: mediaMetadata.fileLength,
+                  mimeType: mediaMetadata.mimetype,
+                  url: mediaMetadata.url,
+                  duration: mediaMetadata.seconds
+                };
+              }
+
+              const newMessage = await storage.createMessage(messageData);
+              
+              // Get full message with sender info
+              const fullMessage = await storage.getMessage(newMessage.id);
+              
+              // Trigger webhooks
+              triggerWebhook('message.created', fullMessage);
+              triggerWebhook('message.received', fullMessage);
               
               // Send WebSocket notification
-              if (wsManager) {
+              if (wsManager && fullMessage) {
                 const participantIds = [conversation.clientId];
                 if (conversation.attendantId) participantIds.push(conversation.attendantId);
-                wsManager.notifyNewConversation(conversation, participantIds);
+                wsManager.notifyNewMessage(conversation.id, fullMessage, participantIds);
               }
             }
           }
+          break;
+        }
 
-          // Extract message content
-          let messageContent = '';
-          if (message.message.conversation) {
-            messageContent = message.message.conversation;
-          } else if (message.message.extendedTextMessage) {
-            messageContent = message.message.extendedTextMessage.text;
-          }
+        case 'messages.update':
+        case 'MESSAGES_UPDATE': {
+          console.log('[Evolution API] Message update event received:', data.data);
+          triggerWebhook('evolution.message.update', data.data);
+          break;
+        }
 
-          // Create message in the system
-          if (messageContent && conversation) {
-            const newMessage = await storage.createMessage({
-              conversationId: conversation.id,
-              senderId: client.id,
-              content: messageContent,
-              type: 'text',
-            });
+        case 'messages.delete':
+        case 'MESSAGES_DELETE': {
+          console.log('[Evolution API] Message delete event received:', data.data);
+          triggerWebhook('evolution.message.delete', data.data);
+          break;
+        }
+
+        case 'send.message':
+        case 'SEND_MESSAGE': {
+          console.log('[Evolution API] Send message event received:', data.data);
+          triggerWebhook('evolution.message.sent', data.data);
+          break;
+        }
+
+        case 'presence.update':
+        case 'PRESENCE_UPDATE': {
+          const presenceData = data.data;
+          console.log('[Evolution API] Presence update:', presenceData);
+          
+          // Trigger webhook for presence update
+          triggerWebhook('evolution.presence.update', presenceData);
+          
+          // Send WebSocket notification for presence (typing, online, offline)
+          if (wsManager && presenceData.id) {
+            const phoneNumber = presenceData.id.replace('@s.whatsapp.net', '');
+            const client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
             
-            // Get full message with sender info
-            const fullMessage = await storage.getMessage(newMessage.id);
-            
-            // Trigger webhooks
-            triggerWebhook('message.created', fullMessage);
-            triggerWebhook('message.sent', fullMessage);
-            
-            // Send WebSocket notification
-            if (wsManager && fullMessage) {
-              const participantIds = [conversation.clientId];
-              if (conversation.attendantId) participantIds.push(conversation.attendantId);
-              wsManager.notifyNewMessage(conversation.id, fullMessage, participantIds);
+            if (client) {
+              const conversations = await storage.getConversations(client.id);
+              const activeConversation = conversations.find(c => c.status !== 'closed');
+              
+              if (activeConversation) {
+                const participantIds = [activeConversation.clientId];
+                if (activeConversation.attendantId) participantIds.push(activeConversation.attendantId);
+                
+                // Notify presence change via WebSocket
+                wsManager.sendToUsers(participantIds, {
+                  type: 'presence_update',
+                  payload: {
+                    conversationId: activeConversation.id,
+                    userId: client.id,
+                    presence: presenceData.presences?.[0]?.lastKnownPresence || 'unavailable'
+                  }
+                });
+              }
             }
           }
+          break;
         }
+
+        case 'qrcode.updated':
+        case 'QRCODE_UPDATED': {
+          const qrcodeData = data.data;
+          console.log('[Evolution API] QR Code updated for instance:', instanceId);
+          
+          // Update channel with QR code info if needed
+          triggerWebhook('evolution.qrcode.updated', {
+            instanceId,
+            qrcode: qrcodeData.qrcode,
+            status: qrcodeData.status
+          });
+          break;
+        }
+
+        default:
+          console.log('[Evolution API] Unhandled event type:', data.event);
+          triggerWebhook('evolution.event.unhandled', data);
       }
 
       res.json({ success: true });
