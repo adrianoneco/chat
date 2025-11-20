@@ -8,6 +8,13 @@
       "when": 1763510243806,
       "tag": "0000_mute_ezekiel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763677909252,
+      "tag": "0001_chief_karma",
+      "breakpoints": true
     }
   ]
 }

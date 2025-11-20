@@ -61,6 +61,7 @@ export interface IStorage {
   updateConversationLastMessage(id: string, message: string): Promise<void>;
   updateConversationDeleted(id: string, deleted: boolean): Promise<void>;
   updateConversationAttendant(id: string, attendantId: string): Promise<void>;
+  updateConversationMode(id: string, mode: string): Promise<void>;
 
   // Message operations
   getMessage(id: string): Promise<Message | undefined>;
@@ -298,6 +299,15 @@ export class MemStorage implements IStorage {
     const conv = this.conversations.get(id);
     if (conv) {
       conv.attendantId = attendantId;
+      conv.updatedAt = new Date();
+      this.conversations.set(id, conv);
+    }
+  }
+
+  async updateConversationMode(id: string, mode: string): Promise<void> {
+    const conv = this.conversations.get(id);
+    if (conv) {
+      conv.mode = mode as any;
       conv.updatedAt = new Date();
       this.conversations.set(id, conv);
     }
@@ -837,6 +847,16 @@ export class DatabaseStorage implements IStorage {
       .update(conversations)
       .set({
         attendantId,
+        updatedAt: new Date(),
+      })
+      .where(eq(conversations.id, id));
+  }
+
+  async updateConversationMode(id: string, mode: string): Promise<void> {
+    await db
+      .update(conversations)
+      .set({
+        mode: mode as any,
         updatedAt: new Date(),
       })
       .where(eq(conversations.id, id));

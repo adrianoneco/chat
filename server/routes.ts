@@ -486,13 +486,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/conversations', isAuthenticated, async (req, res) => {
     try {
       const userId = req.session.userId!;
+      const userRole = req.session.userRole!;
       const { clientId } = req.body;
       
-      const validatedData = insertConversationSchema.parse({
-        ...req.body,
-        clientId: clientId || userId,
-        status: 'pending',
-      });
+      // If user is a client, they can only create conversations for themselves
+      // and cannot select an attendant (will be assigned later)
+      let conversationData: any;
+      if (userRole === 'client') {
+        conversationData = {
+          clientId: userId,
+          status: 'pending',
+          attendantId: undefined, // No attendant assigned yet
+        };
+      } else {
+        // Attendants and admins can create conversations for clients and assign attendants
+        conversationData = {
+          ...req.body,
+          clientId: clientId || userId,
+          status: 'pending',
+        };
+      }
+      
+      const validatedData = insertConversationSchema.parse(conversationData);
       const conversation = await storage.createConversation(validatedData);
       const fullConversation = await storage.getConversation(conversation.id);
       
@@ -584,10 +599,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (wsManager) {
         const conversation = await storage.getConversation(message.conversationId);
         if (conversation) {
+          // If an attendant is replying and mode is ia-agent, change to attendant mode
+          const sender = await storage.getUser(userId);
+          if (sender && (sender.role === 'attendant' || sender.role === 'admin') && conversation.mode === 'ia-agent') {
+            await storage.updateConversationMode(message.conversationId, 'attendant');
+            conversation.mode = 'attendant' as any;
+          }
+          
           const participantIds = [conversation.clientId];
           if (conversation.attendantId) participantIds.push(conversation.attendantId);
           
-          const sender = await storage.getUser(userId);
           const messageWithSender = {
             ...message,
             sender: sender!,
@@ -1218,6 +1239,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Webhook não encontrado' });
       }
 
+      // Sanitize memory usage to prevent BigInt serialization issues
+      const memUsage = process.memoryUsage();
+      const sanitizedMemory = {
+        rss: memUsage.rss.toString(),
+        heapTotal: memUsage.heapTotal.toString(),
+        heapUsed: memUsage.heapUsed.toString(),
+        external: memUsage.external.toString(),
+        arrayBuffers: memUsage.arrayBuffers?.toString() || '0',
+      };
+
       const testPayload = {
         event: 'test.webhook',
         timestamp: new Date().toISOString(),
@@ -1225,7 +1256,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           applicationName: 'ChatApp',
           version: '1.0.0',
           environment: process.env.NODE_ENV || 'development',
+          platform: {
+            nodeVersion: process.version,
+            architecture: process.arch,
+            platform: process.platform,
+            uptime: Math.floor(process.uptime()),
+            memoryUsage: sanitizedMemory,
+          },
+          webhook: {
+            id: webhook.id,
+            name: webhook.name,
+            url: webhook.url,
+            authType: webhook.authType,
+            events: webhook.events,
+          },
           test: true,
+          message: 'This is a test webhook payload with system information',
         },
       };
 

@@ -77,11 +77,16 @@ export type User = typeof users.$inferSelect;
 export const conversationStatuses = ["pending", "attending", "closed"] as const;
 export type ConversationStatus = typeof conversationStatuses[number];
 
+// Conversation modes
+export const conversationModes = ["attendant", "ia-agent"] as const;
+export type ConversationMode = typeof conversationModes[number];
+
 // Conversations table
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   protocolNumber: varchar("protocol_number").notNull().unique(),
   status: varchar("status").$type<ConversationStatus>().notNull().default("pending"),
+  mode: varchar("mode").$type<ConversationMode>().notNull().default("ia-agent"),
   clientId: varchar("client_id").notNull().references(() => users.id),
   attendantId: varchar("attendant_id").references(() => users.id),
   clientLocation: text("client_location"),
@@ -104,6 +109,7 @@ export const insertConversationSchema = createInsertSchema(conversations).omit({
   protocolNumber: true,
   attendantId: true,
   clientLocation: true,
+  mode: true,
 });
 
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
