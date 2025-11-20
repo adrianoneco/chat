@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 
 interface ConversationHeaderProps {
   conversation: ConversationWithUsers;
+  otherUserActivity?: 'typing' | 'recording' | 'uploading' | null;
   onVoiceCall?: () => void;
   onVideoCall?: () => void;
   onScreenShare?: () => void;
@@ -27,6 +28,7 @@ interface ConversationHeaderProps {
 
 export function ConversationHeader({
   conversation,
+  otherUserActivity,
   onVoiceCall,
   onVideoCall,
   onScreenShare,
@@ -63,7 +65,27 @@ export function ConversationHeader({
     }
   };
 
+  const getActivityText = () => {
+    if (otherUserActivity) {
+      switch (otherUserActivity) {
+        case 'typing':
+          return "digitando...";
+        case 'recording':
+          return "gravando...";
+        case 'uploading':
+          return "enviando arquivo...";
+      }
+    }
+    return null;
+  };
+
   const getLastSeenText = () => {
+    // Show activity status first
+    const activityText = getActivityText();
+    if (activityText) {
+      return activityText;
+    }
+    
     if (conversation.status === "attending") {
       return "online agora";
     }

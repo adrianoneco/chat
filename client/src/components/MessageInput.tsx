@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Mic, Video, Image as ImageIcon, Paperclip, Send, X, Reply, Square, Sparkles, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { UploadProgress } from "./UploadProgress";
 import type { MessageWithSender, ReadyMessage } from "@shared/schema";
+import { useUserActivity } from "@/hooks/useUserActivity";
 
 interface MessageInputProps {
   onSendMessage: (content: string, replyToId?: string) => void;
@@ -23,6 +24,8 @@ interface MessageInputProps {
   uploadProgress?: number;
   uploadFileName?: string;
   onCancelUpload?: () => void;
+  conversationId?: string;
+  otherParticipantId?: string;
   conversationData?: {
     clientFirstName: string;
     clientLastName: string;
@@ -41,6 +44,8 @@ export function MessageInput({
   uploadProgress,
   uploadFileName,
   onCancelUpload,
+  conversationId,
+  otherParticipantId,
   conversationData 
 }: MessageInputProps) {
   const { toast } = useToast();
@@ -55,6 +60,9 @@ export function MessageInput({
   const videoInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { sendActivity } = useUserActivity(conversationId, otherParticipantId);
 
   const { data: readyMessages = [] } = useQuery<ReadyMessage[]>({
     queryKey: ["/api/ready-messages"],
@@ -62,6 +70,7 @@ export function MessageInput({
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
+      sendActivity(null); // Clear typing status
       onSendMessage(message.trim(), replyingTo?.id);
       setMessage("");
       setHeight(60);
@@ -70,6 +79,24 @@ export function MessageInput({
       }
     }
   };
+
+  const handleMessageChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newMessage = e.target.value;
+    setMessage(newMessage);
+
+    // Send typing indicator with debounce
+    sendActivity('typing');
+    
+    // Clear previous timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    // Clear typing status after 2 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      sendActivity(null);
+    }, 2000);
+  }, [sendActivity]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -89,6 +116,8 @@ export function MessageInput({
 
   const startRecording = async (type: 'audio' | 'video') => {
     try {
+      sendActivity('recording'); // Notify that user is recording
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: type === 'video'
@@ -112,6 +141,8 @@ export function MessageInput({
           type: blob.type
         });
         
+        sendActivity('uploading'); // Switch to uploading status
+        
         if (onSendFile) {
           onSendFile(file, type, replyingTo?.id);
         }
@@ -119,6 +150,9 @@ export function MessageInput({
         stream.getTracks().forEach(track => track.stop());
         setIsRecording(false);
         setRecordingType(null);
+        
+        // Clear activity status after a short delay
+        setTimeout(() => sendActivity(null), 1000);
       };
 
       mediaRecorder.start();
@@ -126,6 +160,7 @@ export function MessageInput({
       setRecordingType(type);
     } catch (error) {
       console.error('Error accessing media devices:', error);
+      sendActivity(null); // Clear recording status on error
       toast({
         title: "Erro ao acessar mídia",
         description: "Não foi possível acessar câmera/microfone",
@@ -137,12 +172,15 @@ export function MessageInput({
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+      sendActivity(null); // Clear recording status immediately
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
     const file = e.target.files?.[0];
     if (file && onSendFile) {
+      sendActivity('uploading'); // Notify that user is uploading
+      
       // Auto-detect file type based on MIME type
       let detectedType = type;
       
@@ -157,6 +195,9 @@ export function MessageInput({
       }
       
       onSendFile(file, detectedType, replyingTo?.id);
+      
+      // Clear activity status after a short delay
+      setTimeout(() => sendActivity(null), 1000);
     }
     e.target.value = '';
   };
@@ -210,6 +251,22 @@ export function MessageInput({
     setMessage(processedContent);
     toast({ title: `Mensagem "${readyMessage.title}" inserida!` });
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear typing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      // Clear activity status
+      sendActivity(null);
+      // Stop recording if active
+      if (mediaRecorderRef.current && isRecording) {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, [sendActivity, isRecording]);
 
   return (
     <div
@@ -360,7 +417,7 @@ export function MessageInput({
           <Textarea
             ref={textareaRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleMessageChange}
             onKeyDown={handleKeyDown}
             placeholder={replyingTo ? "Digite sua resposta..." : "Digite sua mensagem..."}
             disabled={disabled || isRecording}

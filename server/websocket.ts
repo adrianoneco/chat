@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import type { IncomingMessage } from 'http';
 import session from 'express-session';
+import { storage } from './storage';
 
 interface WSClient extends WebSocket {
   userId?: string;
@@ -108,6 +109,39 @@ export class WebSocketManager {
     // Handle ping-pong for connection keep-alive
     if (message.type === 'ping') {
       ws.send(JSON.stringify({ type: 'pong' }));
+      return;
+    }
+
+    // Handle user activity status (typing, recording, uploading)
+    if (message.type === 'user:activity') {
+      const { conversationId, activity, otherParticipantId } = message.payload;
+      if (ws.userId && otherParticipantId && conversationId) {
+        // Security: Verify both users belong to the same conversation
+        storage.getConversationById(conversationId).then((conversation) => {
+          if (!conversation) return;
+          
+          // Check if both sender and recipient are participants
+          const isValidParticipants = 
+            (conversation.clientId === ws.userId && conversation.attendantId === otherParticipantId) ||
+            (conversation.attendantId === ws.userId && conversation.clientId === otherParticipantId);
+          
+          if (!isValidParticipants) {
+            console.warn(`User ${ws.userId} attempted to send activity to ${otherParticipantId} in conversation ${conversationId} but they are not participants`);
+            return;
+          }
+
+          this.sendToUser(otherParticipantId, {
+            type: 'user:activity',
+            payload: {
+              conversationId,
+              userId: ws.userId,
+              activity, // 'typing' | 'recording' | 'uploading' | null
+            }
+          });
+        }).catch((err) => {
+          console.error('Error validating conversation participants for activity:', err);
+        });
+      }
     }
   }
 

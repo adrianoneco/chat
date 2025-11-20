@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useWebSocketConversation, useWebSocketMessage } from "@/hooks/useWebSocket";
+import { useUserActivity } from "@/hooks/useUserActivity";
 import { Header } from "@/components/Header";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { ConversationList } from "@/components/ConversationList";
@@ -123,6 +124,18 @@ export default function Home() {
   }, [messages, selectedConversationId]);
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+
+  // Determine the other participant's ID for user activity
+  const otherParticipantId = useMemo(() => {
+    if (!selectedConversation || !user) return undefined;
+    if (user.id === selectedConversation.clientId) {
+      return selectedConversation.attendantId || undefined;
+    }
+    return selectedConversation.clientId;
+  }, [selectedConversation, user]);
+
+  // Track other user's activity
+  const { otherUserActivity } = useUserActivity(selectedConversationId, otherParticipantId);
 
   // WebSocket listeners for real-time updates
   const handleWSNewConversation = useCallback((conversation: ConversationWithUsers) => {
@@ -644,6 +657,7 @@ export default function Home() {
               <>
                 <ConversationHeader
                   conversation={selectedConversation}
+                  otherUserActivity={otherUserActivity}
                   onVoiceCall={() => toast({ title: "Chamada de voz", description: "Funcionalidade em desenvolvimento" })}
                   onVideoCall={() => toast({ title: "Chamada de vídeo", description: "Funcionalidade em desenvolvimento" })}
                   onScreenShare={() => toast({ title: "Compartilhar tela", description: "Funcionalidade em desenvolvimento" })}

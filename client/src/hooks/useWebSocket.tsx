@@ -5,6 +5,7 @@ interface WebSocketContextType {
   connected: boolean;
   subscribe: (event: string, handler: (data: any) => void) => () => void;
   unsubscribe: (event: string, handler: (data: any) => void) => void;
+  send: (type: string, payload: any) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -100,6 +101,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const send = useCallback((type: string, payload: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type, payload }));
+    } else {
+      console.warn('WebSocket is not connected, cannot send message');
+    }
+  }, []);
+
   useEffect(() => {
     connect();
 
@@ -114,7 +123,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   }, [connect]);
 
   return (
-    <WebSocketContext.Provider value={{ connected, subscribe, unsubscribe }}>
+    <WebSocketContext.Provider value={{ connected, subscribe, unsubscribe, send }}>
       {children}
     </WebSocketContext.Provider>
   );
