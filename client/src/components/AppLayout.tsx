@@ -41,14 +41,19 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
+  // Don't show sidebar for clients
+  const showSidebar = user?.role !== 'client';
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <LeftSidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleSidebar} />
+      {showSidebar && (
+        <LeftSidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleSidebar} />
+      )}
       <main
         className="pt-16 transition-all duration-300 ease-in-out"
         style={{
-          marginLeft: sidebarCollapsed ? "64px" : "256px",
+          marginLeft: showSidebar ? (sidebarCollapsed ? "64px" : "256px") : "0",
         }}
       >
         {children}

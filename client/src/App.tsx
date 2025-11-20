@@ -22,6 +22,26 @@ import AiAgents from "@/pages/ai-agents";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoutes() {
+  const { user } = useAuth();
+  
+  // For clients, only show conversations page
+  if (user?.role === 'client') {
+    return (
+      <WebSocketProvider>
+        <AppLayout>
+          <Switch>
+            <Route path="/conversations" component={Home} />
+            <Route path="/conversations/:id" component={Home} />
+            <Route>
+              <Redirect to="/conversations" />
+            </Route>
+          </Switch>
+        </AppLayout>
+      </WebSocketProvider>
+    );
+  }
+  
+  // For attendants and admins, show all pages
   return (
     <WebSocketProvider>
       <AppLayout>

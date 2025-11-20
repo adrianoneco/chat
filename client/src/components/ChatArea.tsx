@@ -193,7 +193,7 @@ export function ChatArea({ messages, currentUser, onReply, onForward, onReact, o
                 isCurrentUser ? "items-end" : "items-start"
               )}
             >
-              {showAvatar && (currentUser.role === 'client' || !isCurrentUser) && (
+              {showAvatar && !isCurrentUser && (
                 <span className="text-xs text-muted-foreground px-3">
                   {message.sender.firstName} {message.sender.lastName}
                 </span>

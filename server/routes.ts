@@ -1717,6 +1717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Find or create client by phone number (using email as phoneNumber@whatsapp for now)
           let client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+          let isNewClient = false;
           
           if (!client) {
             // Create new client
@@ -1731,11 +1732,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               resetToken: null,
               resetTokenExpiry: null,
             });
+            isNewClient = true;
+          }
+          
+          // Trigger webhooks for new user/contact if client was just created
+          if (isNewClient && client) {
+            const { password, resetToken, resetTokenExpiry, ...clientWithoutPassword } = client;
+            triggerWebhook('user.created', clientWithoutPassword);
+            triggerWebhook('contact.created', clientWithoutPassword);
           }
 
           // Find or create conversation
           const conversations = await storage.getConversations(client.id);
           let conversation = conversations.find(c => c.status !== 'closed');
+          let isNewConversation = false;
           
           if (!conversation) {
             const newConv = await storage.createConversation({
@@ -1743,6 +1753,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               status: 'pending',
             });
             conversation = await storage.getConversation(newConv.id);
+            isNewConversation = true;
+            
+            // Trigger webhook for new conversation
+            if (conversation) {
+              triggerWebhook('conversation.created', conversation);
+              
+              // Send WebSocket notification
+              if (wsManager) {
+                const participantIds = [conversation.clientId];
+                if (conversation.attendantId) participantIds.push(conversation.attendantId);
+                wsManager.notifyNewConversation(conversation, participantIds);
+              }
+            }
           }
 
           // Extract message content
@@ -1755,12 +1778,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Create message in the system
           if (messageContent && conversation) {
-            await storage.createMessage({
+            const newMessage = await storage.createMessage({
               conversationId: conversation.id,
               senderId: client.id,
               content: messageContent,
               type: 'text',
             });
+            
+            // Get full message with sender info
+            const fullMessage = await storage.getMessage(newMessage.id);
+            
+            // Trigger webhooks
+            triggerWebhook('message.created', fullMessage);
+            triggerWebhook('message.sent', fullMessage);
+            
+            // Send WebSocket notification
+            if (wsManager && fullMessage) {
+              const participantIds = [conversation.clientId];
+              if (conversation.attendantId) participantIds.push(conversation.attendantId);
+              wsManager.notifyNewMessage(conversation.id, fullMessage, participantIds);
+            }
           }
         }
       }
