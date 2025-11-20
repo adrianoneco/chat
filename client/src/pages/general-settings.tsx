@@ -1,16 +1,133 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Database, Zap, Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Mail, Database, Zap, Shield, Settings } from "lucide-react";
 
 export default function GeneralSettings() {
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [envVars, setEnvVars] = useState({
+    SMTP_HOST: "",
+    SMTP_PORT: "",
+    SMTP_USER: "",
+    SMTP_PASS: "",
+    GROQ_API_KEY: "",
+    SESSION_SECRET: "",
+  });
+
+  const handleSave = () => {
+    toast({
+      title: "Atenção",
+      description: "Configure estas variáveis na seção 'Secrets' do painel do Replit para que sejam aplicadas ao servidor.",
+      variant: "destructive",
+    });
+    setIsEditing(false);
+  };
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Configurações Gerais</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Visão geral das configurações do sistema
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Configurações Gerais</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Visão geral das configurações do sistema
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setIsEditing(!isEditing)}
+        >
+          <Settings className="w-4 h-4 mr-2" />
+          {isEditing ? "Cancelar" : "Editar Variáveis"}
+        </Button>
       </div>
+
+      {isEditing && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Variáveis de Ambiente</CardTitle>
+            <CardDescription>
+              Configure as variáveis de ambiente do sistema
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="smtp_host">SMTP_HOST</Label>
+                <Input
+                  id="smtp_host"
+                  placeholder="smtp.exemplo.com"
+                  value={envVars.SMTP_HOST}
+                  onChange={(e) => setEnvVars({ ...envVars, SMTP_HOST: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="smtp_port">SMTP_PORT</Label>
+                <Input
+                  id="smtp_port"
+                  placeholder="587"
+                  value={envVars.SMTP_PORT}
+                  onChange={(e) => setEnvVars({ ...envVars, SMTP_PORT: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="smtp_user">SMTP_USER</Label>
+                <Input
+                  id="smtp_user"
+                  placeholder="seu@email.com"
+                  value={envVars.SMTP_USER}
+                  onChange={(e) => setEnvVars({ ...envVars, SMTP_USER: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="smtp_pass">SMTP_PASS</Label>
+                <Input
+                  id="smtp_pass"
+                  type="password"
+                  placeholder="••••••••"
+                  value={envVars.SMTP_PASS}
+                  onChange={(e) => setEnvVars({ ...envVars, SMTP_PASS: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="groq_api_key">GROQ_API_KEY</Label>
+                <Input
+                  id="groq_api_key"
+                  type="password"
+                  placeholder="gsk_..."
+                  value={envVars.GROQ_API_KEY}
+                  onChange={(e) => setEnvVars({ ...envVars, GROQ_API_KEY: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="session_secret">SESSION_SECRET</Label>
+                <Input
+                  id="session_secret"
+                  type="password"
+                  placeholder="••••••••"
+                  value={envVars.SESSION_SECRET}
+                  onChange={(e) => setEnvVars({ ...envVars, SESSION_SECRET: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditing(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave}>
+                Salvar Configurações
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Nota: Para configurar variáveis de ambiente em produção, use a seção "Secrets" no painel do Replit. As variáveis configuradas aqui são apenas para referência e devem ser adicionadas manualmente nas configurações do Replit.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

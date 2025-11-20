@@ -1,6 +1,7 @@
-import { MessageSquare, Users, Zap, Shield } from "lucide-react";
+import { Users, Zap, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Logo } from "@/components/Logo";
 
 export default function Landing() {
   return (
@@ -8,7 +9,7 @@ export default function Landing() {
       <div
         className="relative min-h-screen flex items-center justify-center overflow-hidden"
         style={{
-          background: "linear-gradient(to bottom, rgb(59 130 246), rgb(168 85 247))",
+          background: "linear-gradient(135deg, #0f0520 0%, #1a0b2e 25%, #2d1b4e 50%, #4c1d95 75%, #7c3aed 100%)",
         }}
       >
         <div
@@ -19,13 +20,9 @@ export default function Landing() {
         />
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-lg mb-8">
-            <MessageSquare className="w-10 h-10 text-white" />
+          <div className="mb-8">
+            <Logo size="large" />
           </div>
-
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
-            ChatApp
-          </h1>
 
           <p className="text-xl md:text-2xl text-white/90 mb-12 max-w-2xl mx-auto">
             Sistema completo de atendimento via chat com gestão de conversas e múltiplos usuários

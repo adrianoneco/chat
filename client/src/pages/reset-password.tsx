@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
 export default function ResetPassword() {
   const [, setLocation] = useLocation();
@@ -103,10 +103,8 @@ export default function ResetPassword() {
     >
       <Card className="w-full max-w-md bg-white/5 backdrop-blur-2xl border-white/10 shadow-2xl text-white">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 backdrop-blur-xl shadow-lg">
-            <MessageSquare className="w-8 h-8 text-white drop-shadow-lg" />
-          </div>
-          <CardTitle className="text-3xl font-bold">Nova Senha</CardTitle>
+          <Logo />
+          <CardTitle className="text-xl font-semibold text-white/90">Nova Senha</CardTitle>
           <CardDescription className="text-white/80">
             Digite sua nova senha abaixo
           </CardDescription>
