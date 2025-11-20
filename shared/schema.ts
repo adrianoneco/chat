@@ -351,9 +351,24 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  provider: z.literal("groq").default("groq"),
+  model: z.enum([
+    "llama-3.3-70b-versatile",
+    "llama-3.3-70b-specdec",
+    "llama-3.1-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
+  ]).default("llama-3.3-70b-versatile"),
+  temperature: z.string(),
+  maxTokens: z.string(),
+  autoReplyDelay: z.string(),
+  triggers: z.array(z.string().min(1, "Gatilho não pode ser vazio")).optional().default([]),
 }).partial({
   description: true,
   triggerConditions: true,
+  triggers: true,
 });
 
 export const updateAiAgentSchema = insertAiAgentSchema.omit({
@@ -423,9 +438,17 @@ export const insertTagSchema = createInsertSchema(tags).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  name: z.string().min(1, "Nome é obrigatório").max(50, "Nome muito longo"),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida"),
 });
 
+export const updateTagSchema = insertTagSchema.omit({
+  createdBy: true,
+}).partial();
+
 export type InsertTag = z.infer<typeof insertTagSchema>;
+export type UpdateTag = z.infer<typeof updateTagSchema>;
 export type Tag = typeof tags.$inferSelect;
 
 // Conversation tags join table
@@ -452,9 +475,18 @@ export const insertReadyMessageSchema = createInsertSchema(readyMessages).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  title: z.string().min(1, "Título é obrigatório").max(100, "Título muito longo"),
+  content: z.string().min(1, "Conteúdo é obrigatório"),
+  shortcuts: z.array(z.string()).optional().default([]),
 });
 
+export const updateReadyMessageSchema = insertReadyMessageSchema.omit({
+  createdBy: true,
+}).partial();
+
 export type InsertReadyMessage = z.infer<typeof insertReadyMessageSchema>;
+export type UpdateReadyMessage = z.infer<typeof updateReadyMessageSchema>;
 export type ReadyMessage = typeof readyMessages.$inferSelect;
 
 // Email report schema

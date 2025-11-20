@@ -10,24 +10,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Bot, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, Bot, Sparkles, X, Zap } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { AiAgentWithCreator } from "@shared/schema";
+
+const GROQ_MODELS = [
+  { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile" },
+  { id: "llama-3.3-70b-specdec", name: "Llama 3.3 70B SpecDec" },
+  { id: "llama-3.1-70b-versatile", name: "Llama 3.1 70B Versatile" },
+  { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant" },
+  { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+  { id: "gemma2-9b-it", name: "Gemma 2 9B" },
+];
 
 export default function AiAgents() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AiAgentWithCreator | null>(null);
+  const [newTrigger, setNewTrigger] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     systemInstructions: "",
     isActive: false,
-    provider: "openai",
-    model: "gpt-4",
+    provider: "groq",
+    model: "llama-3.3-70b-versatile",
     temperature: "0.7",
-    maxTokens: "500",
+    maxTokens: "2048",
     autoReplyEnabled: false,
     autoReplyDelay: "0",
+    triggers: [] as string[],
   });
 
   const { data: agents = [], isLoading } = useQuery<AiAgentWithCreator[]>({
@@ -78,14 +90,16 @@ export default function AiAgents() {
       description: "",
       systemInstructions: "",
       isActive: false,
-      provider: "openai",
-      model: "gpt-4",
+      provider: "groq",
+      model: "llama-3.3-70b-versatile",
       temperature: "0.7",
-      maxTokens: "500",
+      maxTokens: "2048",
       autoReplyEnabled: false,
       autoReplyDelay: "0",
+      triggers: [],
     });
     setEditingAgent(null);
+    setNewTrigger("");
   };
 
   const handleOpenDialog = (agent?: AiAgentWithCreator) => {
@@ -96,17 +110,35 @@ export default function AiAgents() {
         description: agent.description || "",
         systemInstructions: agent.systemInstructions,
         isActive: agent.isActive,
-        provider: agent.provider,
+        provider: "groq",
         model: agent.model,
         temperature: agent.temperature,
         maxTokens: agent.maxTokens,
         autoReplyEnabled: agent.autoReplyEnabled,
         autoReplyDelay: agent.autoReplyDelay,
+        triggers: agent.triggers || [],
       });
     } else {
       resetForm();
     }
     setIsDialogOpen(true);
+  };
+
+  const handleAddTrigger = () => {
+    if (newTrigger.trim()) {
+      setFormData({
+        ...formData,
+        triggers: [...formData.triggers, newTrigger.trim()],
+      });
+      setNewTrigger("");
+    }
+  };
+
+  const handleRemoveTrigger = (index: number) => {
+    setFormData({
+      ...formData,
+      triggers: formData.triggers.filter((_, i) => i !== index),
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -127,10 +159,10 @@ export default function AiAgents() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">Agentes I.A</h1>
-            <p className="text-muted-foreground">Automatize respostas nas conversas</p>
+            <p className="text-muted-foreground">Automatize respostas com Groq AI</p>
           </div>
         </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2" data-testid="button-add-agent">
+        <Button onClick={() => handleOpenDialog()} className="gap-2">
           <Plus className="w-4 h-4" />
           Novo Agente
         </Button>
@@ -146,7 +178,7 @@ export default function AiAgents() {
             <p className="text-muted-foreground mb-4">
               Crie seu primeiro agente para automatizar respostas
             </p>
-            <Button onClick={() => handleOpenDialog()} data-testid="button-add-first-agent">
+            <Button onClick={() => handleOpenDialog()}>
               Criar Agente
             </Button>
           </CardContent>
@@ -162,9 +194,7 @@ export default function AiAgents() {
                     {agent.name}
                   </CardTitle>
                   {agent.isActive && (
-                    <span className="px-2 py-1 text-xs rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100">
-                      Ativo
-                    </span>
+                    <Badge className="bg-green-500">Ativo</Badge>
                   )}
                 </div>
                 {agent.description && (
@@ -174,17 +204,32 @@ export default function AiAgents() {
               <CardContent className="space-y-3">
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Provider:</span>
-                    <span className="font-medium">{agent.provider}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Modelo:</span>
-                    <span className="font-medium">{agent.model}</span>
+                    <span className="font-medium text-xs">
+                      {GROQ_MODELS.find(m => m.id === agent.model)?.name || agent.model}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Resposta automática:</span>
                     <span className="font-medium">{agent.autoReplyEnabled ? 'Sim' : 'Não'}</span>
                   </div>
+                  {agent.triggers && agent.triggers.length > 0 && (
+                    <div className="pt-2">
+                      <span className="text-muted-foreground text-xs">Gatilhos:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {agent.triggers.slice(0, 3).map((trigger, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {trigger}
+                          </Badge>
+                        ))}
+                        {agent.triggers.length > 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{agent.triggers.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button
@@ -192,7 +237,6 @@ export default function AiAgents() {
                     size="sm"
                     className="flex-1 gap-2"
                     onClick={() => handleOpenDialog(agent)}
-                    data-testid={`button-edit-agent-${agent.id}`}
                   >
                     <Pencil className="w-4 h-4" />
                     Editar
@@ -206,7 +250,6 @@ export default function AiAgents() {
                         deleteMutation.mutate(agent.id);
                       }
                     }}
-                    data-testid={`button-delete-agent-${agent.id}`}
                   >
                     <Trash2 className="w-4 h-4" />
                     Deletar
@@ -219,9 +262,12 @@ export default function AiAgents() {
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingAgent ? "Editar Agente IA" : "Novo Agente IA"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-purple-500" />
+              {editingAgent ? "Editar Agente IA" : "Novo Agente IA"}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -257,52 +303,71 @@ export default function AiAgents() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="provider">Provider</Label>
-                <Select
-                  value={formData.provider}
-                  onValueChange={(value) => setFormData({ ...formData, provider: value })}
-                >
-                  <SelectTrigger data-testid="select-provider">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="anthropic">Anthropic</SelectItem>
-                    <SelectItem value="google">Google</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="model">Modelo Groq</Label>
+              <Select
+                value={formData.model}
+                onValueChange={(value) => setFormData({ ...formData, model: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GROQ_MODELS.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="model">Modelo</Label>
-                <Select
-                  value={formData.model}
-                  onValueChange={(value) => setFormData({ ...formData, model: value })}
-                >
-                  <SelectTrigger data-testid="select-model">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-4">GPT-4</SelectItem>
-                    <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                    <SelectItem value="claude-3">Claude 3</SelectItem>
-                    <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <Label>Gatilhos (Keywords)</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Quando o usuário enviar estas frases, o agente será ativado.
+                Ex: "falar com humano", "falar com atendente"
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={newTrigger}
+                  onChange={(e) => setNewTrigger(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTrigger();
+                    }
+                  }}
+                  placeholder="Ex: falar com humano"
+                />
+                <Button type="button" onClick={handleAddTrigger} variant="outline">
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
+              {formData.triggers.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.triggers.map((trigger, index) => (
+                    <Badge key={index} variant="secondary" className="gap-1">
+                      {trigger}
+                      <X
+                        className="w-3 h-3 cursor-pointer hover:text-destructive"
+                        onClick={() => handleRemoveTrigger(index)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="temperature">Temperatura (0-1)</Label>
+                <Label htmlFor="temperature">Temperatura (0-2)</Label>
                 <Input
                   id="temperature"
                   type="number"
                   step="0.1"
                   min="0"
-                  max="1"
+                  max="2"
                   value={formData.temperature}
                   onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
                 />
@@ -325,7 +390,6 @@ export default function AiAgents() {
                 id="isActive"
                 checked={formData.isActive}
                 onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
-                data-testid="switch-is-active"
               />
             </div>
 
@@ -335,7 +399,6 @@ export default function AiAgents() {
                 id="autoReplyEnabled"
                 checked={formData.autoReplyEnabled}
                 onCheckedChange={(checked) => setFormData({ ...formData, autoReplyEnabled: checked })}
-                data-testid="switch-auto-reply"
               />
             </div>
 

@@ -10,6 +10,7 @@ import sharp from "sharp";
 import { parseBuffer } from "music-metadata";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateResetToken, isAuthenticated, requireRole } from "./auth";
+import { correctText, generateReadyMessage } from "./groq";
 import { sendPasswordResetEmail } from "./email";
 import { initializeWebSocket, wsManager } from "./websocket";
 import {
@@ -27,6 +28,10 @@ import {
   updateAiAgentSchema,
   insertChannelSchema,
   updateChannelSchema,
+  insertTagSchema,
+  updateTagSchema,
+  insertReadyMessageSchema,
+  updateReadyMessageSchema,
   users,
   messages,
   webhooks,
@@ -1680,6 +1685,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error processing Evolution webhook:', error);
       res.status(500).json({ message: 'Erro ao processar webhook' });
+    }
+  });
+
+  // Tags routes
+  app.get('/api/tags', isAuthenticated, async (req, res) => {
+    try {
+      const tags = await storage.getTags();
+      res.json(tags);
+    } catch (error) {
+      console.error('Error getting tags:', error);
+      res.status(500).json({ message: 'Erro ao buscar tags' });
+    }
+  });
+
+  app.post('/api/tags', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const validatedData = insertTagSchema.parse({
+        ...req.body,
+        createdBy: req.session.userId!,
+      });
+      const tag = await storage.createTag(validatedData);
+      res.status(201).json(tag);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error creating tag:', error);
+      res.status(500).json({ message: 'Erro ao criar tag' });
+    }
+  });
+
+  app.patch('/api/tags/:id', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const validatedData = updateTagSchema.parse(req.body);
+      const tag = await storage.updateTag(req.params.id, validatedData);
+      if (!tag) {
+        return res.status(404).json({ message: 'Tag não encontrada' });
+      }
+      res.json(tag);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error updating tag:', error);
+      res.status(500).json({ message: 'Erro ao atualizar tag' });
+    }
+  });
+
+  app.delete('/api/tags/:id', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const deleted = await storage.deleteTag(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Tag não encontrada' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      res.status(500).json({ message: 'Erro ao deletar tag' });
+    }
+  });
+
+  // Conversation tags routes
+  app.post('/api/conversations/:conversationId/tags/:tagId', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const { conversationId, tagId } = req.params;
+      
+      // Validate IDs
+      if (!conversationId || !tagId) {
+        return res.status(400).json({ message: 'IDs inválidos' });
+      }
+
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: 'Conversa não encontrada' });
+      }
+
+      // Check if tag exists
+      const tag = await storage.getTagById(tagId);
+      if (!tag) {
+        return res.status(404).json({ message: 'Tag não encontrada' });
+      }
+
+      await storage.addTagToConversation(conversationId, tagId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error adding tag to conversation:', error);
+      res.status(500).json({ message: 'Erro ao adicionar tag' });
+    }
+  });
+
+  app.delete('/api/conversations/:conversationId/tags/:tagId', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const { conversationId, tagId } = req.params;
+      
+      // Validate IDs
+      if (!conversationId || !tagId) {
+        return res.status(400).json({ message: 'IDs inválidos' });
+      }
+
+      await storage.removeTagFromConversation(conversationId, tagId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error removing tag from conversation:', error);
+      res.status(500).json({ message: 'Erro ao remover tag' });
+    }
+  });
+
+  app.get('/api/conversations/:conversationId/tags', isAuthenticated, async (req, res) => {
+    try {
+      const tags = await storage.getConversationTags(req.params.conversationId);
+      res.json(tags);
+    } catch (error) {
+      console.error('Error getting conversation tags:', error);
+      res.status(500).json({ message: 'Erro ao buscar tags da conversa' });
+    }
+  });
+
+  // Groq AI routes
+  app.post('/api/groq/correct-text', isAuthenticated, async (req, res) => {
+    try {
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ message: 'Texto é obrigatório' });
+      }
+      const correctedText = await correctText(text);
+      res.json({ correctedText });
+    } catch (error) {
+      console.error('Error correcting text:', error);
+      res.status(500).json({ message: 'Erro ao corrigir texto' });
+    }
+  });
+
+  app.post('/api/groq/generate-message', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      if (!prompt) {
+        return res.status(400).json({ message: 'Prompt é obrigatório' });
+      }
+      const generatedMessage = await generateReadyMessage(prompt);
+      res.json({ message: generatedMessage });
+    } catch (error) {
+      console.error('Error generating message:', error);
+      res.status(500).json({ message: 'Erro ao gerar mensagem' });
+    }
+  });
+
+  // Ready messages routes
+  app.get('/api/ready-messages', isAuthenticated, async (req, res) => {
+    try {
+      const messages = await storage.getReadyMessages();
+      res.json(messages);
+    } catch (error) {
+      console.error('Error getting ready messages:', error);
+      res.status(500).json({ message: 'Erro ao buscar mensagens prontas' });
+    }
+  });
+
+  app.post('/api/ready-messages', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const validatedData = insertReadyMessageSchema.parse({
+        ...req.body,
+        createdBy: req.session.userId!,
+      });
+      const message = await storage.createReadyMessage(validatedData);
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error creating ready message:', error);
+      res.status(500).json({ message: 'Erro ao criar mensagem pronta' });
+    }
+  });
+
+  app.patch('/api/ready-messages/:id', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const validatedData = updateReadyMessageSchema.parse(req.body);
+      const message = await storage.updateReadyMessage(req.params.id, validatedData);
+      if (!message) {
+        return res.status(404).json({ message: 'Mensagem pronta não encontrada' });
+      }
+      res.json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error updating ready message:', error);
+      res.status(500).json({ message: 'Erro ao atualizar mensagem pronta' });
+    }
+  });
+
+  app.delete('/api/ready-messages/:id', isAuthenticated, requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const deleted = await storage.deleteReadyMessage(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Mensagem pronta não encontrada' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting ready message:', error);
+      res.status(500).json({ message: 'Erro ao deletar mensagem pronta' });
     }
   });
 

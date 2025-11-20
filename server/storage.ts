@@ -7,6 +7,9 @@ import {
   campaigns,
   aiAgents,
   channels,
+  tags,
+  conversationTags,
+  readyMessages,
   type User,
   type UpsertUser,
   type Conversation,
@@ -26,6 +29,10 @@ import {
   type Channel,
   type InsertChannel,
   type ChannelWithCreator,
+  type Tag,
+  type InsertTag,
+  type ReadyMessage,
+  type InsertReadyMessage,
   type ConversationWithUsers,
   type MessageWithSender,
   type ReactionWithUser,
@@ -94,6 +101,25 @@ export interface IStorage {
   createChannel(channel: InsertChannel): Promise<Channel>;
   updateChannel(id: string, data: Partial<Channel>): Promise<Channel | undefined>;
   deleteChannel(id: string): Promise<boolean>;
+
+  // Tag operations
+  getTags(): Promise<Tag[]>;
+  getTagById(id: string): Promise<Tag | undefined>;
+  createTag(tag: InsertTag): Promise<Tag>;
+  updateTag(id: string, data: Partial<Tag>): Promise<Tag | undefined>;
+  deleteTag(id: string): Promise<boolean>;
+
+  // Conversation tag operations
+  addTagToConversation(conversationId: string, tagId: string): Promise<void>;
+  removeTagFromConversation(conversationId: string, tagId: string): Promise<void>;
+  getConversationTags(conversationId: string): Promise<Tag[]>;
+
+  // Ready message operations
+  getReadyMessages(): Promise<ReadyMessage[]>;
+  getReadyMessageById(id: string): Promise<ReadyMessage | undefined>;
+  createReadyMessage(message: InsertReadyMessage): Promise<ReadyMessage>;
+  updateReadyMessage(id: string, data: Partial<ReadyMessage>): Promise<ReadyMessage | undefined>;
+  deleteReadyMessage(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -105,6 +131,9 @@ export class MemStorage implements IStorage {
   private campaigns: Map<string, Campaign>;
   private aiAgents: Map<string, AiAgent>;
   private channels: Map<string, Channel>;
+  private tags: Map<string, Tag>;
+  private conversationTagsMap: Map<string, Set<string>>;
+  private readyMessagesMap: Map<string, ReadyMessage>;
 
   constructor() {
     this.users = new Map();
@@ -115,6 +144,9 @@ export class MemStorage implements IStorage {
     this.campaigns = new Map();
     this.aiAgents = new Map();
     this.channels = new Map();
+    this.tags = new Map();
+    this.conversationTagsMap = new Map();
+    this.readyMessagesMap = new Map();
   }
 
   // User operations
@@ -553,6 +585,95 @@ export class MemStorage implements IStorage {
   async deleteChannel(id: string): Promise<boolean> {
     return this.channels.delete(id);
   }
+
+  // Tag operations
+  async getTags(): Promise<Tag[]> {
+    return Array.from(this.tags.values());
+  }
+
+  async getTagById(id: string): Promise<Tag | undefined> {
+    return this.tags.get(id);
+  }
+
+  async createTag(tagData: InsertTag): Promise<Tag> {
+    const id = randomUUID();
+    const tag: Tag = {
+      ...tagData,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as Tag;
+    this.tags.set(id, tag);
+    return tag;
+  }
+
+  async updateTag(id: string, data: Partial<Tag>): Promise<Tag | undefined> {
+    const tag = this.tags.get(id);
+    if (!tag) return undefined;
+    const updated = { ...tag, ...data, updatedAt: new Date() };
+    this.tags.set(id, updated);
+    return updated;
+  }
+
+  async deleteTag(id: string): Promise<boolean> {
+    return this.tags.delete(id);
+  }
+
+  // Conversation tag operations
+  async addTagToConversation(conversationId: string, tagId: string): Promise<void> {
+    if (!this.conversationTagsMap.has(conversationId)) {
+      this.conversationTagsMap.set(conversationId, new Set());
+    }
+    this.conversationTagsMap.get(conversationId)!.add(tagId);
+  }
+
+  async removeTagFromConversation(conversationId: string, tagId: string): Promise<void> {
+    const tags = this.conversationTagsMap.get(conversationId);
+    if (tags) {
+      tags.delete(tagId);
+    }
+  }
+
+  async getConversationTags(conversationId: string): Promise<Tag[]> {
+    const tagIds = this.conversationTagsMap.get(conversationId);
+    if (!tagIds) return [];
+    return Array.from(tagIds)
+      .map(id => this.tags.get(id))
+      .filter((tag): tag is Tag => tag !== undefined);
+  }
+
+  // Ready message operations
+  async getReadyMessages(): Promise<ReadyMessage[]> {
+    return Array.from(this.readyMessagesMap.values());
+  }
+
+  async getReadyMessageById(id: string): Promise<ReadyMessage | undefined> {
+    return this.readyMessagesMap.get(id);
+  }
+
+  async createReadyMessage(messageData: InsertReadyMessage): Promise<ReadyMessage> {
+    const id = randomUUID();
+    const message: ReadyMessage = {
+      ...messageData,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as ReadyMessage;
+    this.readyMessagesMap.set(id, message);
+    return message;
+  }
+
+  async updateReadyMessage(id: string, data: Partial<ReadyMessage>): Promise<ReadyMessage | undefined> {
+    const message = this.readyMessagesMap.get(id);
+    if (!message) return undefined;
+    const updated = { ...message, ...data, updatedAt: new Date() };
+    this.readyMessagesMap.set(id, updated);
+    return updated;
+  }
+
+  async deleteReadyMessage(id: string): Promise<boolean> {
+    return this.readyMessagesMap.delete(id);
+  }
 }
 
 // PostgreSQL Database Storage Implementation
@@ -979,6 +1100,89 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChannel(id: string): Promise<boolean> {
     const results = await db.delete(channels).where(eq(channels.id, id)).returning();
+    return results.length > 0;
+  }
+
+  // Tag operations
+  async getTags(): Promise<Tag[]> {
+    return await db.select().from(tags).orderBy(desc(tags.createdAt));
+  }
+
+  async getTagById(id: string): Promise<Tag | undefined> {
+    const results = await db.select().from(tags).where(eq(tags.id, id));
+    return results[0];
+  }
+
+  async createTag(tagData: InsertTag): Promise<Tag> {
+    const results = await db.insert(tags).values(tagData as any).returning();
+    return results[0];
+  }
+
+  async updateTag(id: string, data: Partial<Tag>): Promise<Tag | undefined> {
+    const results = await db
+      .update(tags)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(eq(tags.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteTag(id: string): Promise<boolean> {
+    const results = await db.delete(tags).where(eq(tags.id, id)).returning();
+    return results.length > 0;
+  }
+
+  // Conversation tag operations
+  async addTagToConversation(conversationId: string, tagId: string): Promise<void> {
+    await db.insert(conversationTags).values({ conversationId, tagId });
+  }
+
+  async removeTagFromConversation(conversationId: string, tagId: string): Promise<void> {
+    await db
+      .delete(conversationTags)
+      .where(
+        and(
+          eq(conversationTags.conversationId, conversationId),
+          eq(conversationTags.tagId, tagId)
+        )
+      );
+  }
+
+  async getConversationTags(conversationId: string): Promise<Tag[]> {
+    const results = await db
+      .select({ tag: tags })
+      .from(conversationTags)
+      .innerJoin(tags, eq(conversationTags.tagId, tags.id))
+      .where(eq(conversationTags.conversationId, conversationId));
+    return results.map((r) => r.tag);
+  }
+
+  // Ready message operations
+  async getReadyMessages(): Promise<ReadyMessage[]> {
+    return await db.select().from(readyMessages).orderBy(desc(readyMessages.createdAt));
+  }
+
+  async getReadyMessageById(id: string): Promise<ReadyMessage | undefined> {
+    const results = await db.select().from(readyMessages).where(eq(readyMessages.id, id));
+    return results[0];
+  }
+
+  async createReadyMessage(messageData: InsertReadyMessage): Promise<ReadyMessage> {
+    const results = await db.insert(readyMessages).values(messageData as any).returning();
+    return results[0];
+  }
+
+  async updateReadyMessage(id: string, data: Partial<ReadyMessage>): Promise<ReadyMessage | undefined> {
+    const results = await db
+      .update(readyMessages)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(eq(readyMessages.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteReadyMessage(id: string): Promise<boolean> {
+    const results = await db.delete(readyMessages).where(eq(readyMessages.id, id)).returning();
     return results.length > 0;
   }
 }
