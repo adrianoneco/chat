@@ -355,6 +355,7 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  createdBy: true,
 }).extend({
   provider: z.literal("groq").default("groq"),
   model: z.enum([
@@ -380,9 +381,7 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).omit({
   triggerActions: true,
 });
 
-export const updateAiAgentSchema = insertAiAgentSchema.omit({
-  createdBy: true,
-}).partial();
+export const updateAiAgentSchema = insertAiAgentSchema.partial();
 
 export type InsertAiAgent = z.infer<typeof insertAiAgentSchema>;
 export type UpdateAiAgent = z.infer<typeof updateAiAgentSchema>;
@@ -416,14 +415,13 @@ export const insertChannelSchema = createInsertSchema(channels).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  createdBy: true,
 }).partial({
   webhookUrl: true,
   config: true,
 });
 
-export const updateChannelSchema = insertChannelSchema.omit({
-  createdBy: true,
-}).partial();
+export const updateChannelSchema = insertChannelSchema.partial();
 
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
 export type UpdateChannel = z.infer<typeof updateChannelSchema>;

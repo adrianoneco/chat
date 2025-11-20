@@ -1530,7 +1530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ai-agents', requireRole('admin'), async (req, res) => {
     try {
       const validatedData = insertAiAgentSchema.parse(req.body);
-      const userId = (req.user as any).id;
+      const userId = req.session.userId!;
       const agent = await storage.createAiAgent({
         ...validatedData,
         createdBy: userId,
@@ -1602,7 +1602,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/channels', requireRole('admin'), async (req, res) => {
     try {
       const validatedData = insertChannelSchema.parse(req.body);
-      const userId = (req.user as any).id;
+      const userId = req.session.userId!;
       const channel = await storage.createChannel({
         ...validatedData,
         createdBy: userId,
