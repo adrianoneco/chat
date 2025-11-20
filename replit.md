@@ -30,10 +30,15 @@ ChatApp é um sistema completo de atendimento via chat com autenticação multi-
 - Geolocalização do cliente
 
 ### Mensagens
-- Chat em tempo real
+- Chat em tempo real via WebSocket
 - Caixa de input expansível verticalmente
 - Botões para áudio, vídeo, imagens, anexos
 - Scroll automático para novas mensagens
+- **Indicadores de atividade**: Mostra quando o outro usuário está digitando, gravando ou enviando arquivos
+  - Status exibido em tempo real no cabeçalho da conversa
+  - Validação de segurança no backend (verifica participantes)
+  - Usa conexão WebSocket compartilhada para performance
+  - Limpeza automática de status ao desmontar componente
 
 ## Estrutura de Dados
 
