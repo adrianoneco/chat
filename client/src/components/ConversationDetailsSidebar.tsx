@@ -167,7 +167,7 @@ export function ConversationDetailsSidebar({
         size="icon"
         onClick={onToggleCollapse}
         className={cn(
-          "fixed top-1/2 -translate-y-1/2 w-6 h-12 rounded-l-md rounded-r-none bg-background border border-r-0 border-border shadow-md hover-elevate active-elevate-2 z-40 transition-all duration-300",
+          "fixed top-16 translate-y-[calc(50vh-2rem)] w-6 h-12 rounded-l-md rounded-r-none bg-background border border-r-0 border-border shadow-md hover-elevate active-elevate-2 z-40 transition-all duration-300",
           collapsed ? "right-0" : "right-80"
         )}
         data-testid="button-toggle-right-sidebar"

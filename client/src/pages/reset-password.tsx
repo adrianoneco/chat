@@ -76,15 +76,15 @@ export default function ResetPassword() {
       <div
         className="min-h-screen flex items-center justify-center p-4"
         style={{
-          background: "linear-gradient(135deg, #4c1d95 0%, #581c87 100%)",
+          background: "linear-gradient(135deg, #0f0520 0%, #1a0b2e 25%, #2d1b4e 50%, #4c1d95 75%, #7c3aed 100%)",
         }}
       >
-        <Card className="w-full max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white">
+        <Card className="w-full max-w-md bg-white/5 backdrop-blur-2xl border-white/10 shadow-2xl text-white">
           <CardContent className="pt-6 text-center">
             <p className="text-white/90 mb-4">Token inválido ou expirado</p>
             <Button
               onClick={() => setLocation("/forgot-password")}
-              className="bg-white text-blue-900 hover:bg-white/90"
+              className="bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700 shadow-lg"
             >
               Solicitar novo link
             </Button>
@@ -98,13 +98,13 @@ export default function ResetPassword() {
     <div
       className="min-h-screen flex items-center justify-center p-4"
       style={{
-        background: "linear-gradient(135deg, #4c1d95 0%, #581c87 100%)",
+        background: "linear-gradient(135deg, #0f0520 0%, #1a0b2e 25%, #2d1b4e 50%, #4c1d95 75%, #7c3aed 100%)",
       }}
     >
-      <Card className="w-full max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white">
+      <Card className="w-full max-w-md bg-white/5 backdrop-blur-2xl border-white/10 shadow-2xl text-white">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-lg">
-            <MessageSquare className="w-8 h-8 text-white" />
+          <div className="mx-auto inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 backdrop-blur-xl shadow-lg">
+            <MessageSquare className="w-8 h-8 text-white drop-shadow-lg" />
           </div>
           <CardTitle className="text-3xl font-bold">Nova Senha</CardTitle>
           <CardDescription className="text-white/80">
@@ -123,7 +123,7 @@ export default function ResetPassword() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:bg-white/10 focus:border-white/20 transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -136,7 +136,7 @@ export default function ResetPassword() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={6}
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:bg-white/10 focus:border-white/20 transition-all"
               />
             </div>
             <Button
