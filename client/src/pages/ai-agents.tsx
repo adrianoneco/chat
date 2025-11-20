@@ -23,11 +23,18 @@ const GROQ_MODELS = [
   { id: "gemma2-9b-it", name: "Gemma 2 9B" },
 ];
 
+type TriggerAction = {
+  keyword: string;
+  action: "stop_ai" | "transfer" | "close" | "pause_ai";
+};
+
 export default function AiAgents() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AiAgentWithCreator | null>(null);
   const [newTrigger, setNewTrigger] = useState("");
+  const [newTriggerKeyword, setNewTriggerKeyword] = useState("");
+  const [newTriggerAction, setNewTriggerAction] = useState<"stop_ai" | "transfer" | "close" | "pause_ai">("stop_ai");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -40,6 +47,7 @@ export default function AiAgents() {
     autoReplyEnabled: false,
     autoReplyDelay: "0",
     triggers: [] as string[],
+    triggerActions: [] as TriggerAction[],
   });
 
   const { data: agents = [], isLoading } = useQuery<AiAgentWithCreator[]>({
@@ -97,9 +105,12 @@ export default function AiAgents() {
       autoReplyEnabled: false,
       autoReplyDelay: "0",
       triggers: [],
+      triggerActions: [],
     });
     setEditingAgent(null);
     setNewTrigger("");
+    setNewTriggerKeyword("");
+    setNewTriggerAction("stop_ai");
   };
 
   const handleOpenDialog = (agent?: AiAgentWithCreator) => {
@@ -117,6 +128,7 @@ export default function AiAgents() {
         autoReplyEnabled: agent.autoReplyEnabled,
         autoReplyDelay: agent.autoReplyDelay,
         triggers: agent.triggers || [],
+        triggerActions: agent.triggerActions || [],
       });
     } else {
       resetForm();
@@ -139,6 +151,34 @@ export default function AiAgents() {
       ...formData,
       triggers: formData.triggers.filter((_, i) => i !== index),
     });
+  };
+
+  const handleAddTriggerAction = () => {
+    if (newTriggerKeyword.trim()) {
+      setFormData({
+        ...formData,
+        triggerActions: [...formData.triggerActions, { keyword: newTriggerKeyword.trim(), action: newTriggerAction }],
+      });
+      setNewTriggerKeyword("");
+      setNewTriggerAction("stop_ai");
+    }
+  };
+
+  const handleRemoveTriggerAction = (index: number) => {
+    setFormData({
+      ...formData,
+      triggerActions: formData.triggerActions.filter((_, i) => i !== index),
+    });
+  };
+
+  const getActionLabel = (action: string) => {
+    const labels = {
+      stop_ai: "Parar IA",
+      transfer: "Transferir",
+      close: "Encerrar",
+      pause_ai: "Pausar IA",
+    };
+    return labels[action as keyof typeof labels] || action;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -354,6 +394,65 @@ export default function AiAgents() {
                         onClick={() => handleRemoveTrigger(index)}
                       />
                     </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Ações de Gatilho</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Configure ações que serão executadas quando gatilhos específicos forem acionados.
+                Ex: "falar com atendente" → Parar IA e transferir
+              </p>
+              <div className="grid grid-cols-[2fr,1fr,auto] gap-2">
+                <Input
+                  value={newTriggerKeyword}
+                  onChange={(e) => setNewTriggerKeyword(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTriggerAction();
+                    }
+                  }}
+                  placeholder="Ex: falar com atendente"
+                />
+                <Select
+                  value={newTriggerAction}
+                  onValueChange={(value: any) => setNewTriggerAction(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stop_ai">Parar IA</SelectItem>
+                    <SelectItem value="transfer">Transferir</SelectItem>
+                    <SelectItem value="close">Encerrar</SelectItem>
+                    <SelectItem value="pause_ai">Pausar IA</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button type="button" onClick={handleAddTriggerAction} variant="outline">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              {formData.triggerActions.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  {formData.triggerActions.map((triggerAction, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 border rounded-md">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{triggerAction.keyword}</span>
+                        <span className="text-xs text-muted-foreground">→</span>
+                        <Badge variant="outline">{getActionLabel(triggerAction.action)}</Badge>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveTriggerAction(index)}
+                      >
+                        <X className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
               )}

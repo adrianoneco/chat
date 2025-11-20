@@ -114,10 +114,72 @@ export default function Reports() {
     setIsEmailDialogOpen(true);
   };
 
+  const generateReportData = (type: ReportType): string => {
+    let reportData = "";
+    const date = format(new Date(), "dd/MM/yyyy HH:mm");
+    
+    switch (type) {
+      case "conversations":
+        reportData = `Relatório de Conversas - ${date}\n\n`;
+        reportData += `Total: ${stats.conversations.total}\n`;
+        reportData += `Pendentes: ${stats.conversations.pending}\n`;
+        reportData += `Em Atendimento: ${stats.conversations.attending}\n`;
+        reportData += `Fechadas: ${stats.conversations.closed}\n`;
+        break;
+      case "campaigns":
+        reportData = `Relatório de Campanhas - ${date}\n\n`;
+        reportData += `Total: ${stats.campaigns.total}\n`;
+        reportData += `Ativas: ${stats.campaigns.active}\n`;
+        reportData += `Concluídas: ${stats.campaigns.completed}\n`;
+        reportData += `Total Enviadas: ${stats.campaigns.totalSent}\n`;
+        reportData += `Total Entregues: ${stats.campaigns.totalDelivered}\n`;
+        break;
+      case "attendants":
+        reportData = `Relatório de Atendentes - ${date}\n\n`;
+        stats.attendants.forEach(att => {
+          reportData += `${att.firstName} ${att.lastName}:\n`;
+          reportData += `  Conversas Ativas: ${att.activeConversations}\n`;
+          reportData += `  Conversas Fechadas: ${att.closedConversations}\n`;
+          reportData += `  Total: ${att.totalConversations}\n\n`;
+        });
+        break;
+      default:
+        reportData = `Relatório Geral - ${date}\n\n`;
+        reportData += `CONVERSAS:\n`;
+        reportData += `  Total: ${stats.conversations.total}\n`;
+        reportData += `  Pendentes: ${stats.conversations.pending}\n`;
+        reportData += `  Em Atendimento: ${stats.conversations.attending}\n`;
+        reportData += `  Fechadas: ${stats.conversations.closed}\n\n`;
+        reportData += `CAMPANHAS:\n`;
+        reportData += `  Total: ${stats.campaigns.total}\n`;
+        reportData += `  Ativas: ${stats.campaigns.active}\n`;
+        reportData += `  Concluídas: ${stats.campaigns.completed}\n\n`;
+        reportData += `ATENDENTES:\n`;
+        reportData += `  Total: ${stats.attendants.length}\n`;
+    }
+    
+    return reportData;
+  };
+
   const onSubmit = async (data: EmailReport) => {
     try {
-      // Here you would make an API call to send the email with the report
-      // For now, we'll just show a success message
+      const reportData = generateReportData(selectedReportType);
+      
+      const response = await fetch('/api/reports/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          recipientEmail: data.recipientEmail,
+          recipientName: data.recipientName,
+          subject: data.subject,
+          message: data.message,
+          reportData,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Erro ao enviar email');
+
       toast({
         title: "Relatório enviado!",
         description: `Relatório enviado para ${data.recipientEmail}`,

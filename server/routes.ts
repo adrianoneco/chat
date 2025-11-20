@@ -1474,6 +1474,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reports routes
+  app.post('/api/reports/send-email', isAuthenticated, async (req, res) => {
+    try {
+      const { recipientEmail, recipientName, subject, message, reportData } = req.body;
+      
+      if (!recipientEmail || !subject || !reportData) {
+        return res.status(400).json({ message: 'Dados incompletos' });
+      }
+
+      const { sendReportEmail } = await import('./email');
+      const success = await sendReportEmail(
+        recipientEmail,
+        recipientName || 'Cliente',
+        subject,
+        message || '',
+        reportData
+      );
+
+      if (success) {
+        res.json({ success: true, message: 'Email enviado com sucesso' });
+      } else {
+        res.status(500).json({ message: 'Erro ao enviar email' });
+      }
+    } catch (error) {
+      console.error('Error sending report email:', error);
+      res.status(500).json({ message: 'Erro ao enviar email' });
+    }
+  });
+
   // AI Agents routes
   app.get('/api/ai-agents', requireRole('admin', 'attendant'), async (req, res) => {
     try {

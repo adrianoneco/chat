@@ -40,3 +40,42 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
     return false;
   }
 }
+
+export async function sendReportEmail(
+  recipientEmail: string,
+  recipientName: string,
+  subject: string,
+  message: string,
+  reportData: string
+) {
+  const mailOptions = {
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: recipientEmail,
+    subject: subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #10b981;">Relatório Gerado</h2>
+        <p>Olá ${recipientName},</p>
+        <p>${message.replace(/\n/g, '<br/>')}</p>
+        <div style="background-color: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <pre style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 12px; margin: 0;">${reportData}</pre>
+        </div>
+        <p style="color: #666; font-size: 14px; margin-top: 20px;">Este relatório foi gerado automaticamente pelo sistema.</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: 'relatorio.txt',
+        content: reportData,
+      }
+    ]
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Error sending report email:', error);
+    return false;
+  }
+}

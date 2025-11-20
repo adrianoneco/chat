@@ -194,9 +194,9 @@ export default function WebhooksSettings() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="space-y-6">
         {/* Webhook List */}
-        <Card className="lg:col-span-1">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-2">
               <span>Webhooks</span>
@@ -213,46 +213,48 @@ export default function WebhooksSettings() {
               </Button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
-            {webhooks.map((webhook) => (
-              <div
-                key={webhook.id}
-                className={`p-3 rounded-md border cursor-pointer hover-elevate ${
-                  selectedWebhook?.id === webhook.id ? "bg-accent" : ""
-                }`}
-                onClick={() => editWebhook(webhook)}
-                data-testid={`webhook-item-${webhook.id}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{webhook.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{webhook.url}</p>
-                    <div className="flex gap-1 mt-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {webhook.events?.length || 0} eventos
-                      </Badge>
-                      {webhook.isActive === "true" && (
-                        <Badge variant="default" className="text-xs">
-                          Ativo
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
+              {webhooks.map((webhook) => (
+                <div
+                  key={webhook.id}
+                  className={`p-3 rounded-md border cursor-pointer hover-elevate ${
+                    selectedWebhook?.id === webhook.id ? "bg-accent" : ""
+                  }`}
+                  onClick={() => editWebhook(webhook)}
+                  data-testid={`webhook-item-${webhook.id}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{webhook.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{webhook.url}</p>
+                      <div className="flex gap-1 mt-1">
+                        <Badge variant="secondary" className="text-xs">
+                          {webhook.events?.length || 0} eventos
                         </Badge>
-                      )}
+                        {webhook.isActive === "true" && (
+                          <Badge variant="default" className="text-xs">
+                            Ativo
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {!isLoading && webhooks.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Nenhum webhook configurado
-              </p>
-            )}
+              ))}
+              {!isLoading && webhooks.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4 col-span-full">
+                  Nenhum webhook configurado
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         {/* Webhook Form */}
         {(isCreating || selectedWebhook) && (
-          <Card className="lg:col-span-2">
+          <Card>
             <CardHeader>
               <CardTitle>{selectedWebhook ? "Editar Webhook" : "Novo Webhook"}</CardTitle>
               <CardDescription>

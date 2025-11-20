@@ -337,6 +337,10 @@ export const aiAgents = pgTable("ai_agents", {
   autoReplyEnabled: boolean("auto_reply_enabled").notNull().default(false),
   autoReplyDelay: varchar("auto_reply_delay").notNull().default("0"),
   triggers: text("triggers").array().default([]),
+  triggerActions: jsonb("trigger_actions").$type<Array<{
+    keyword: string;
+    action: "stop_ai" | "transfer" | "close" | "pause_ai";
+  }>>(),
   triggerConditions: jsonb("trigger_conditions").$type<{
     keywords?: string[];
     conversationStatus?: ConversationStatus[];
@@ -365,10 +369,15 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).omit({
   maxTokens: z.string(),
   autoReplyDelay: z.string(),
   triggers: z.array(z.string().min(1, "Gatilho não pode ser vazio")).optional().default([]),
+  triggerActions: z.array(z.object({
+    keyword: z.string().min(1, "Palavra-chave é obrigatória"),
+    action: z.enum(["stop_ai", "transfer", "close", "pause_ai"]),
+  })).optional().default([]),
 }).partial({
   description: true,
   triggerConditions: true,
   triggers: true,
+  triggerActions: true,
 });
 
 export const updateAiAgentSchema = insertAiAgentSchema.omit({

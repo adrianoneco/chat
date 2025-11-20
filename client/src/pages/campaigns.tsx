@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Megaphone, Calendar, Users, PlayCircle, PauseCircle, CheckCircle, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Megaphone, Calendar, Users, PlayCircle, PauseCircle, CheckCircle, Edit, Trash2, Eye, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,8 @@ export default function Campaigns() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignWithCreator | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -140,6 +142,38 @@ export default function Campaigns() {
       status: "draft",
       message: "",
     });
+    setAiPrompt("");
+  };
+
+  const generateWithAI = async () => {
+    if (!aiPrompt.trim()) {
+      toast({ title: "Digite uma descrição para gerar a mensagem", variant: "destructive" });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/groq/generate-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiPrompt }),
+      });
+
+      if (!response.ok) throw new Error("Erro ao gerar mensagem");
+
+      const data = await response.json();
+      setFormData({ ...formData, message: data.message });
+      setAiPrompt("");
+      toast({ title: "Mensagem gerada com sucesso!" });
+    } catch (error) {
+      toast({
+        title: "Erro ao gerar mensagem",
+        description: "Tente novamente mais tarde",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleCreate = () => {
@@ -368,12 +402,37 @@ export default function Campaigns() {
               </div>
             </div>
             <div className="grid gap-2">
+              <Label>Gerar com IA</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Ex: Crie uma mensagem de promoção de verão"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      generateWithAI();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  onClick={generateWithAI}
+                  disabled={isGenerating}
+                  className="gap-2 flex-shrink-0"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isGenerating ? "Gerando..." : "Gerar"}
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="message">Mensagem</Label>
               <Textarea
                 id="message"
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                placeholder="Digite a mensagem da campanha"
+                placeholder="Digite a mensagem da campanha ou use a IA acima"
                 rows={4}
               />
             </div>
@@ -453,11 +512,37 @@ export default function Campaigns() {
               </div>
             </div>
             <div className="grid gap-2">
+              <Label>Gerar com IA</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Ex: Crie uma mensagem de promoção de verão"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      generateWithAI();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  onClick={generateWithAI}
+                  disabled={isGenerating}
+                  className="gap-2 flex-shrink-0"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isGenerating ? "Gerando..." : "Gerar"}
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="edit-message">Mensagem</Label>
               <Textarea
                 id="edit-message"
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                placeholder="Digite a mensagem da campanha ou use a IA acima"
                 rows={4}
               />
             </div>

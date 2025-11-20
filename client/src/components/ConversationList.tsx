@@ -189,8 +189,26 @@ export function ConversationList({
                       <p className="text-xs text-muted-foreground truncate">
                         {conversation.lastMessage || "Sem mensagens ainda"}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-xs text-muted-foreground">#{conversation.protocolNumber}</span>
+                        {conversation.tags && conversation.tags.length > 0 && (
+                          <>
+                            {conversation.tags.slice(0, 2).map((tag) => (
+                              <Badge
+                                key={tag.id}
+                                style={{ backgroundColor: tag.color }}
+                                className="text-white text-xs px-1.5 py-0 h-auto"
+                              >
+                                {tag.name}
+                              </Badge>
+                            ))}
+                            {conversation.tags.length > 2 && (
+                              <Badge variant="secondary" className="text-xs px-1.5 py-0 h-auto">
+                                +{conversation.tags.length - 2}
+                              </Badge>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>
