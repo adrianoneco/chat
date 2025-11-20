@@ -15,6 +15,7 @@ import { MessageInput } from "@/components/MessageInput";
 import { ConversationDetailsSidebar } from "@/components/ConversationDetailsSidebar";
 import { ForwardMessageModal } from "@/components/ForwardMessageModal";
 import TransferConversationModal from "@/components/TransferConversationModal";
+import { NewConversationModal } from "@/components/NewConversationModal";
 import { cn } from "@/lib/utils";
 import type { ConversationWithUsers, MessageWithSender, User } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,7 @@ export default function Home() {
   const [optimisticMessage, setOptimisticMessage] = useState<MessageWithSender | null>(null);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferTargetConversationId, setTransferTargetConversationId] = useState<string | null>(null);
+  const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
 
   useEffect(() => {
     if (conversationIdFromRoute) {
@@ -335,11 +337,11 @@ export default function Home() {
   };
 
   const createConversationMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (clientId: string) => {
       const res = await fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "pending" }),
+        body: JSON.stringify({ clientId, status: "pending" }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -365,7 +367,11 @@ export default function Home() {
   });
 
   const handleNewConversation = () => {
-    createConversationMutation.mutate();
+    setNewConversationModalOpen(true);
+  };
+
+  const handleSelectContact = (contactId: string) => {
+    createConversationMutation.mutate(contactId);
   };
 
   const handleSendMessage = (content: string, replyToId?: string) => {
@@ -699,6 +705,11 @@ export default function Home() {
         open={transferModalOpen}
         onOpenChange={(v) => setTransferModalOpen(v)}
         onTransfer={handlePerformTransfer}
+      />
+      <NewConversationModal
+        open={newConversationModalOpen}
+        onOpenChange={setNewConversationModalOpen}
+        onSelectContact={handleSelectContact}
       />
     </div>
   );
