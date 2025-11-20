@@ -171,6 +171,7 @@ export type Reaction = typeof reactions.$inferSelect;
 export type ConversationWithUsers = Conversation & {
   client: User;
   attendant: User | null;
+  tags?: Tag[];
 };
 
 export type ConversationWithDetails = ConversationWithUsers & {
@@ -329,12 +330,13 @@ export const aiAgents = pgTable("ai_agents", {
   description: text("description"),
   systemInstructions: text("system_instructions").notNull(),
   isActive: boolean("is_active").notNull().default(false),
-  provider: varchar("provider").notNull().default("openai"),
-  model: varchar("model").notNull().default("gpt-4"),
+  provider: varchar("provider").notNull().default("groq"),
+  model: varchar("model").notNull().default("llama-3.3-70b-versatile"),
   temperature: varchar("temperature").notNull().default("0.7"),
   maxTokens: varchar("max_tokens").notNull().default("500"),
   autoReplyEnabled: boolean("auto_reply_enabled").notNull().default(false),
   autoReplyDelay: varchar("auto_reply_delay").notNull().default("0"),
+  triggers: text("triggers").array().default([]),
   triggerConditions: jsonb("trigger_conditions").$type<{
     keywords?: string[];
     conversationStatus?: ConversationStatus[];
@@ -406,6 +408,54 @@ export type Channel = typeof channels.$inferSelect;
 export type ChannelWithCreator = Channel & {
   creator: User;
 };
+
+// Tags table for conversation tagging
+export const tags = pgTable("tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(),
+  color: varchar("color").notNull().default("#3b82f6"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTagSchema = createInsertSchema(tags).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTag = z.infer<typeof insertTagSchema>;
+export type Tag = typeof tags.$inferSelect;
+
+// Conversation tags join table
+export const conversationTags = pgTable("conversation_tags", {
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  tagId: varchar("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ConversationTag = typeof conversationTags.$inferSelect;
+
+// Ready messages (message templates)
+export const readyMessages = pgTable("ready_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  content: text("content").notNull(),
+  shortcuts: text("shortcuts").array().default([]),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertReadyMessageSchema = createInsertSchema(readyMessages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertReadyMessage = z.infer<typeof insertReadyMessageSchema>;
+export type ReadyMessage = typeof readyMessages.$inferSelect;
 
 // Email report schema
 export const emailReportSchema = z.object({
