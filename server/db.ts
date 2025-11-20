@@ -4,9 +4,7 @@ import * as schema from "@shared/schema";
 
 const { Pool } = pg;
 
-const databaseUrl = process.env.DATABASE_URL?.includes('helium') 
-  ? process.env.DATABASE_URL 
-  : `postgresql://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`;
+const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
   throw new Error(
