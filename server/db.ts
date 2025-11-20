@@ -15,4 +15,4 @@ if (!databaseUrl) {
 }
 
 export const pool = new Pool({ connectionString: databaseUrl });
-export const db = drizzle({ client: pool, schema });
+export const db = drizzle(pool, { schema });
