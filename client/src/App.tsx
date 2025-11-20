@@ -18,6 +18,7 @@ import Contacts from "@/pages/contacts";
 import Campaigns from "@/pages/campaigns";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
+import AiAgents from "@/pages/ai-agents";
 import NotFound from "@/pages/not-found";
 
 function ProtectedRoutes() {
@@ -30,6 +31,7 @@ function ProtectedRoutes() {
           <Route path="/attendants" component={Attendants} />
           <Route path="/contacts" component={Contacts} />
           <Route path="/campaigns" component={Campaigns} />
+          <Route path="/ai-agents" component={AiAgents} />
           <Route path="/reports" component={Reports} />
           <Route path="/settings/:rest*" component={Settings} />
           <Route component={NotFound} />

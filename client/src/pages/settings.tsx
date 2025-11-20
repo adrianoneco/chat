@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
-import { Settings as SettingsIcon, Webhook } from "lucide-react";
+import { Settings as SettingsIcon, Webhook, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import WebhooksSettings from "./webhooks-settings";
+import ChannelsSettings from "./channels-settings";
 
 export default function Settings() {
   const [location] = useLocation();
@@ -13,6 +14,11 @@ export default function Settings() {
       title: "Webhooks",
       path: "/settings/webhooks",
       icon: Webhook,
+    },
+    {
+      title: "Canais",
+      path: "/settings/channels",
+      icon: MessageCircle,
     },
   ];
 
@@ -49,6 +55,7 @@ export default function Settings() {
       <div className="flex-1 overflow-auto">
         <Switch>
           <Route path="/settings/webhooks" component={WebhooksSettings} />
+          <Route path="/settings/channels" component={ChannelsSettings} />
           <Route>
             <div className="p-8 text-center text-muted-foreground">
               Selecione uma opção de configuração

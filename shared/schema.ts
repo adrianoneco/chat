@@ -322,6 +322,91 @@ export type CampaignWithCreator = Campaign & {
   creator: User;
 };
 
+// AI Agents table
+export const aiAgents = pgTable("ai_agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  systemInstructions: text("system_instructions").notNull(),
+  isActive: boolean("is_active").notNull().default(false),
+  provider: varchar("provider").notNull().default("openai"),
+  model: varchar("model").notNull().default("gpt-4"),
+  temperature: varchar("temperature").notNull().default("0.7"),
+  maxTokens: varchar("max_tokens").notNull().default("500"),
+  autoReplyEnabled: boolean("auto_reply_enabled").notNull().default(false),
+  autoReplyDelay: varchar("auto_reply_delay").notNull().default("0"),
+  triggerConditions: jsonb("trigger_conditions").$type<{
+    keywords?: string[];
+    conversationStatus?: ConversationStatus[];
+    clientIds?: string[];
+  }>(),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAiAgentSchema = createInsertSchema(aiAgents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).partial({
+  description: true,
+  triggerConditions: true,
+});
+
+export const updateAiAgentSchema = insertAiAgentSchema.omit({
+  createdBy: true,
+}).partial();
+
+export type InsertAiAgent = z.infer<typeof insertAiAgentSchema>;
+export type UpdateAiAgent = z.infer<typeof updateAiAgentSchema>;
+export type AiAgent = typeof aiAgents.$inferSelect;
+
+export type AiAgentWithCreator = AiAgent & {
+  creator: User;
+};
+
+// Channels table for WhatsApp integration
+export const channels = pgTable("channels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  type: varchar("type").notNull().default("whatsapp"),
+  isActive: boolean("is_active").notNull().default(false),
+  apiUrl: varchar("api_url").notNull(),
+  apiKey: varchar("api_key").notNull(),
+  instanceId: varchar("instance_id").notNull(),
+  webhookUrl: varchar("webhook_url"),
+  config: jsonb("config").$type<{
+    qrCode?: string;
+    connectionStatus?: string;
+    phoneNumber?: string;
+  }>(),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertChannelSchema = createInsertSchema(channels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).partial({
+  webhookUrl: true,
+  config: true,
+});
+
+export const updateChannelSchema = insertChannelSchema.omit({
+  createdBy: true,
+}).partial();
+
+export type InsertChannel = z.infer<typeof insertChannelSchema>;
+export type UpdateChannel = z.infer<typeof updateChannelSchema>;
+export type Channel = typeof channels.$inferSelect;
+
+export type ChannelWithCreator = Channel & {
+  creator: User;
+};
+
 // Email report schema
 export const emailReportSchema = z.object({
   recipientName: z.string().min(1, "Nome é obrigatório"),

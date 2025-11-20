@@ -23,9 +23,14 @@ import {
   insertWebhookSchema,
   insertCampaignSchema,
   updateCampaignSchema,
+  insertAiAgentSchema,
+  updateAiAgentSchema,
+  insertChannelSchema,
+  updateChannelSchema,
   users,
   messages,
   webhooks,
+  type Channel,
 } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";
@@ -1452,6 +1457,229 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting campaign:', error);
       res.status(500).json({ message: 'Erro ao deletar campanha' });
+    }
+  });
+
+  // AI Agents routes
+  app.get('/api/ai-agents', requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const agents = await storage.getAiAgents();
+      res.json(agents);
+    } catch (error) {
+      console.error('Error fetching AI agents:', error);
+      res.status(500).json({ message: 'Erro ao buscar agentes IA' });
+    }
+  });
+
+  app.get('/api/ai-agents/:id', requireRole('admin', 'attendant'), async (req, res) => {
+    try {
+      const agent = await storage.getAiAgentById(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ message: 'Agente IA não encontrado' });
+      }
+      res.json(agent);
+    } catch (error) {
+      console.error('Error fetching AI agent:', error);
+      res.status(500).json({ message: 'Erro ao buscar agente IA' });
+    }
+  });
+
+  app.post('/api/ai-agents', requireRole('admin'), async (req, res) => {
+    try {
+      const validatedData = insertAiAgentSchema.parse(req.body);
+      const userId = (req.user as any).id;
+      const agent = await storage.createAiAgent({
+        ...validatedData,
+        createdBy: userId,
+      } as any);
+      res.status(201).json(agent);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error creating AI agent:', error);
+      res.status(500).json({ message: 'Erro ao criar agente IA' });
+    }
+  });
+
+  app.patch('/api/ai-agents/:id', requireRole('admin'), async (req, res) => {
+    try {
+      const validatedData = updateAiAgentSchema.parse(req.body);
+      const agent = await storage.updateAiAgent(req.params.id, validatedData as any);
+      if (!agent) {
+        return res.status(404).json({ message: 'Agente IA não encontrado' });
+      }
+      res.json(agent);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error updating AI agent:', error);
+      res.status(500).json({ message: 'Erro ao atualizar agente IA' });
+    }
+  });
+
+  app.delete('/api/ai-agents/:id', requireRole('admin'), async (req, res) => {
+    try {
+      const success = await storage.deleteAiAgent(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: 'Agente IA não encontrado' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting AI agent:', error);
+      res.status(500).json({ message: 'Erro ao deletar agente IA' });
+    }
+  });
+
+  // Channels routes
+  app.get('/api/channels', requireRole('admin'), async (req, res) => {
+    try {
+      const channels = await storage.getChannels();
+      res.json(channels);
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+      res.status(500).json({ message: 'Erro ao buscar canais' });
+    }
+  });
+
+  app.get('/api/channels/:id', requireRole('admin'), async (req, res) => {
+    try {
+      const channel = await storage.getChannelById(req.params.id);
+      if (!channel) {
+        return res.status(404).json({ message: 'Canal não encontrado' });
+      }
+      res.json(channel);
+    } catch (error) {
+      console.error('Error fetching channel:', error);
+      res.status(500).json({ message: 'Erro ao buscar canal' });
+    }
+  });
+
+  app.post('/api/channels', requireRole('admin'), async (req, res) => {
+    try {
+      const validatedData = insertChannelSchema.parse(req.body);
+      const userId = (req.user as any).id;
+      const channel = await storage.createChannel({
+        ...validatedData,
+        createdBy: userId,
+      } as any);
+      res.status(201).json(channel);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error creating channel:', error);
+      res.status(500).json({ message: 'Erro ao criar canal' });
+    }
+  });
+
+  app.patch('/api/channels/:id', requireRole('admin'), async (req, res) => {
+    try {
+      const validatedData = updateChannelSchema.parse(req.body);
+      const channel = await storage.updateChannel(req.params.id, validatedData as any);
+      if (!channel) {
+        return res.status(404).json({ message: 'Canal não encontrado' });
+      }
+      res.json(channel);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
+      }
+      console.error('Error updating channel:', error);
+      res.status(500).json({ message: 'Erro ao atualizar canal' });
+    }
+  });
+
+  app.delete('/api/channels/:id', requireRole('admin'), async (req, res) => {
+    try {
+      const success = await storage.deleteChannel(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: 'Canal não encontrado' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting channel:', error);
+      res.status(500).json({ message: 'Erro ao deletar canal' });
+    }
+  });
+
+  // EvolutionAPI webhook endpoint
+  app.post('/api/channels/evolution/webhook/:instanceId', async (req, res) => {
+    try {
+      const { instanceId } = req.params;
+      const data = req.body;
+
+      // Find the channel by instance ID
+      const channels = await storage.getChannels();
+      const channel = channels.find(c => c.instanceId === instanceId && c.type === 'whatsapp');
+      
+      if (!channel || !channel.isActive) {
+        return res.status(404).json({ message: 'Canal não encontrado ou inativo' });
+      }
+
+      // Handle different event types from EvolutionAPI
+      if (data.event === 'messages.upsert') {
+        const message = data.data;
+        
+        // Only process incoming messages (not from us)
+        if (!message.key.fromMe && message.message) {
+          const phoneNumber = message.key.remoteJid.replace('@s.whatsapp.net', '');
+          
+          // Find or create client by phone number (using email as phoneNumber@whatsapp for now)
+          let client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+          
+          if (!client) {
+            // Create new client
+            client = await storage.createUser({
+              email: `${phoneNumber}@whatsapp`,
+              password: await hashPassword('whatsapp-user'),
+              firstName: message.pushName || phoneNumber,
+              lastName: '',
+              role: 'client',
+              sidebarCollapsed: 'false',
+              profileImageUrl: null,
+              resetToken: null,
+              resetTokenExpiry: null,
+            });
+          }
+
+          // Find or create conversation
+          const conversations = await storage.getConversations(client.id);
+          let conversation = conversations.find(c => c.status !== 'closed');
+          
+          if (!conversation) {
+            const newConv = await storage.createConversation({
+              clientId: client.id,
+              status: 'pending',
+            });
+            conversation = await storage.getConversation(newConv.id);
+          }
+
+          // Extract message content
+          let messageContent = '';
+          if (message.message.conversation) {
+            messageContent = message.message.conversation;
+          } else if (message.message.extendedTextMessage) {
+            messageContent = message.message.extendedTextMessage.text;
+          }
+
+          // Create message in the system
+          if (messageContent && conversation) {
+            await storage.createMessage({
+              conversationId: conversation.id,
+              senderId: client.id,
+              content: messageContent,
+              type: 'text',
+            });
+          }
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error processing Evolution webhook:', error);
+      res.status(500).json({ message: 'Erro ao processar webhook' });
     }
   });
 

@@ -5,6 +5,8 @@ import {
   reactions,
   webhooks,
   campaigns,
+  aiAgents,
+  channels,
   type User,
   type UpsertUser,
   type Conversation,
@@ -18,6 +20,12 @@ import {
   type Campaign,
   type InsertCampaign,
   type CampaignWithCreator,
+  type AiAgent,
+  type InsertAiAgent,
+  type AiAgentWithCreator,
+  type Channel,
+  type InsertChannel,
+  type ChannelWithCreator,
   type ConversationWithUsers,
   type MessageWithSender,
   type ReactionWithUser,
@@ -72,6 +80,20 @@ export interface IStorage {
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: string, data: Partial<Campaign>): Promise<Campaign | undefined>;
   deleteCampaign(id: string): Promise<boolean>;
+
+  // AI Agent operations
+  getAiAgents(): Promise<AiAgentWithCreator[]>;
+  getAiAgentById(id: string): Promise<AiAgentWithCreator | undefined>;
+  createAiAgent(agent: InsertAiAgent): Promise<AiAgent>;
+  updateAiAgent(id: string, data: Partial<AiAgent>): Promise<AiAgent | undefined>;
+  deleteAiAgent(id: string): Promise<boolean>;
+
+  // Channel operations
+  getChannels(): Promise<ChannelWithCreator[]>;
+  getChannelById(id: string): Promise<ChannelWithCreator | undefined>;
+  createChannel(channel: InsertChannel): Promise<Channel>;
+  updateChannel(id: string, data: Partial<Channel>): Promise<Channel | undefined>;
+  deleteChannel(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -81,6 +103,8 @@ export class MemStorage implements IStorage {
   private reactions: Map<string, Reaction>;
   private webhooks: Map<string, Webhook>;
   private campaigns: Map<string, Campaign>;
+  private aiAgents: Map<string, AiAgent>;
+  private channels: Map<string, Channel>;
 
   constructor() {
     this.users = new Map();
@@ -89,6 +113,8 @@ export class MemStorage implements IStorage {
     this.reactions = new Map();
     this.webhooks = new Map();
     this.campaigns = new Map();
+    this.aiAgents = new Map();
+    this.channels = new Map();
   }
 
   // User operations
@@ -433,6 +459,100 @@ export class MemStorage implements IStorage {
   async deleteCampaign(id: string): Promise<boolean> {
     return this.campaigns.delete(id);
   }
+
+  // AI Agent operations
+  async getAiAgents(): Promise<AiAgentWithCreator[]> {
+    return Promise.all(
+      Array.from(this.aiAgents.values()).map(async (agent) => {
+        const creator = await this.getUser(agent.createdBy);
+        return {
+          ...agent,
+          creator: creator!,
+        };
+      })
+    );
+  }
+
+  async getAiAgentById(id: string): Promise<AiAgentWithCreator | undefined> {
+    const agent = this.aiAgents.get(id);
+    if (!agent) return undefined;
+    const creator = await this.getUser(agent.createdBy);
+    return {
+      ...agent,
+      creator: creator!,
+    };
+  }
+
+  async createAiAgent(agentData: InsertAiAgent): Promise<AiAgent> {
+    const id = randomUUID();
+    const agent: AiAgent = {
+      ...agentData,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as AiAgent;
+    this.aiAgents.set(id, agent);
+    return agent;
+  }
+
+  async updateAiAgent(id: string, data: Partial<AiAgent>): Promise<AiAgent | undefined> {
+    const agent = this.aiAgents.get(id);
+    if (!agent) return undefined;
+    const updated = { ...agent, ...data, updatedAt: new Date() };
+    this.aiAgents.set(id, updated);
+    return updated;
+  }
+
+  async deleteAiAgent(id: string): Promise<boolean> {
+    return this.aiAgents.delete(id);
+  }
+
+  // Channel operations
+  async getChannels(): Promise<ChannelWithCreator[]> {
+    return Promise.all(
+      Array.from(this.channels.values()).map(async (channel) => {
+        const creator = await this.getUser(channel.createdBy);
+        return {
+          ...channel,
+          creator: creator!,
+        };
+      })
+    );
+  }
+
+  async getChannelById(id: string): Promise<ChannelWithCreator | undefined> {
+    const channel = this.channels.get(id);
+    if (!channel) return undefined;
+    const creator = await this.getUser(channel.createdBy);
+    return {
+      ...channel,
+      creator: creator!,
+    };
+  }
+
+  async createChannel(channelData: InsertChannel): Promise<Channel> {
+    const id = randomUUID();
+    const channel: Channel = {
+      ...channelData,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as Channel;
+    this.channels.set(id, channel);
+    return channel;
+  }
+
+  async updateChannel(id: string, data: Partial<Channel>): Promise<Channel | undefined> {
+    const channel = this.channels.get(id);
+    if (!channel) return undefined;
+    const updated = { ...channel, ...data, updatedAt: new Date() };
+    this.channels.set(id, updated);
+    return updated;
+  }
+
+  async deleteChannel(id: string): Promise<boolean> {
+    return this.channels.delete(id);
+  }
 }
 
 // PostgreSQL Database Storage Implementation
@@ -771,6 +891,94 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCampaign(id: string): Promise<boolean> {
     const results = await db.delete(campaigns).where(eq(campaigns.id, id)).returning();
+    return results.length > 0;
+  }
+
+  // AI Agent operations
+  async getAiAgents(): Promise<AiAgentWithCreator[]> {
+    const agents = await db.select().from(aiAgents).orderBy(desc(aiAgents.createdAt));
+    return Promise.all(
+      agents.map(async (agent) => {
+        const creator = await this.getUser(agent.createdBy);
+        return {
+          ...agent,
+          creator: creator!,
+        };
+      })
+    );
+  }
+
+  async getAiAgentById(id: string): Promise<AiAgentWithCreator | undefined> {
+    const results = await db.select().from(aiAgents).where(eq(aiAgents.id, id));
+    if (results.length === 0) return undefined;
+    const agent = results[0];
+    const creator = await this.getUser(agent.createdBy);
+    return {
+      ...agent,
+      creator: creator!,
+    };
+  }
+
+  async createAiAgent(agentData: InsertAiAgent): Promise<AiAgent> {
+    const results = await db.insert(aiAgents).values(agentData as any).returning();
+    return results[0];
+  }
+
+  async updateAiAgent(id: string, data: Partial<AiAgent>): Promise<AiAgent | undefined> {
+    const results = await db
+      .update(aiAgents)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(eq(aiAgents.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteAiAgent(id: string): Promise<boolean> {
+    const results = await db.delete(aiAgents).where(eq(aiAgents.id, id)).returning();
+    return results.length > 0;
+  }
+
+  // Channel operations
+  async getChannels(): Promise<ChannelWithCreator[]> {
+    const channelsList = await db.select().from(channels).orderBy(desc(channels.createdAt));
+    return Promise.all(
+      channelsList.map(async (channel) => {
+        const creator = await this.getUser(channel.createdBy);
+        return {
+          ...channel,
+          creator: creator!,
+        };
+      })
+    );
+  }
+
+  async getChannelById(id: string): Promise<ChannelWithCreator | undefined> {
+    const results = await db.select().from(channels).where(eq(channels.id, id));
+    if (results.length === 0) return undefined;
+    const channel = results[0];
+    const creator = await this.getUser(channel.createdBy);
+    return {
+      ...channel,
+      creator: creator!,
+    };
+  }
+
+  async createChannel(channelData: InsertChannel): Promise<Channel> {
+    const results = await db.insert(channels).values(channelData as any).returning();
+    return results[0];
+  }
+
+  async updateChannel(id: string, data: Partial<Channel>): Promise<Channel | undefined> {
+    const results = await db
+      .update(channels)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(eq(channels.id, id))
+      .returning();
+    return results[0];
+  }
+
+  async deleteChannel(id: string): Promise<boolean> {
+    const results = await db.delete(channels).where(eq(channels.id, id)).returning();
     return results.length > 0;
   }
 }
