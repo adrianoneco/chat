@@ -16,6 +16,7 @@ import { hashPassword, verifyPassword, generateResetToken, isAuthenticated, requ
 import { correctText, generateReadyMessage } from "./groq";
 import { sendPasswordResetEmail } from "./email";
 import { initializeWebSocket, wsManager } from "./websocket";
+import { EvolutionAPIClient } from "./evolution-api";
 import {
   loginSchema,
   signupSchema,
@@ -1652,11 +1653,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertChannelSchema.parse(req.body);
       const userId = req.session.userId!;
-      const channel = await storage.createChannel({
-        ...validatedData,
-        createdBy: userId,
-      } as any);
-      res.status(201).json(channel);
+      
+      // Create EvolutionAPI client
+      const evolutionClient = new EvolutionAPIClient({
+        apiUrl: validatedData.apiUrl,
+        apiKey: validatedData.apiKey,
+      });
+
+      let qrCode: string | undefined;
+      let connectionStatus = 'disconnected';
+
+      try {
+        // Create instance in EvolutionAPI
+        console.log('[EvolutionAPI] Creating instance:', validatedData.instanceId);
+        const instanceResponse = await evolutionClient.createInstance(validatedData.instanceId);
+        
+        // Extract QR code if available
+        if (instanceResponse.instance?.qrcode?.base64) {
+          qrCode = instanceResponse.instance.qrcode.base64;
+        }
+        
+        connectionStatus = instanceResponse.instance?.status || 'disconnected';
+        console.log('[EvolutionAPI] Instance created with status:', connectionStatus);
+
+        // Configure webhook
+        const webhookUrl = `${req.protocol}://${req.get('host')}/api/channels/evolution/webhook/${validatedData.instanceId}`;
+        console.log('[EvolutionAPI] Setting webhook:', webhookUrl);
+        
+        await evolutionClient.setWebhook(validatedData.instanceId, webhookUrl);
+        console.log('[EvolutionAPI] Webhook configured successfully');
+
+        // Save channel to database with QR code and connection status
+        const channel = await storage.createChannel({
+          ...validatedData,
+          webhookUrl,
+          config: {
+            qrCode,
+            connectionStatus,
+          },
+          createdBy: userId,
+        } as any);
+
+        res.status(201).json(channel);
+      } catch (evolutionError: any) {
+        // If EvolutionAPI fails, still save the channel but mark as inactive
+        console.error('[EvolutionAPI] Error during instance creation:', evolutionError.message);
+        
+        const channel = await storage.createChannel({
+          ...validatedData,
+          isActive: false,
+          config: {
+            connectionStatus: 'error',
+            errorMessage: evolutionError.message,
+          },
+          createdBy: userId,
+        } as any);
+
+        return res.status(201).json({
+          ...channel,
+          warning: `Canal criado mas houve erro ao criar instância no EvolutionAPI: ${evolutionError.message}`,
+        });
+      }
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Dados inválidos', errors: error.errors });
