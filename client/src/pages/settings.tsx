@@ -1,15 +1,27 @@
 import { useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
-import { Settings as SettingsIcon, Webhook, MessageCircle } from "lucide-react";
+import { Settings as SettingsIcon, Webhook, MessageCircle, Tag, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import WebhooksSettings from "./webhooks-settings";
 import ChannelsSettings from "./channels-settings";
+import TagsSettings from "./tags-settings";
+import ReadyMessagesSettings from "./ready-messages-settings";
 
 export default function Settings() {
   const [location] = useLocation();
 
   const settingsPages = [
+    {
+      title: "Tags",
+      path: "/settings/tags",
+      icon: Tag,
+    },
+    {
+      title: "Mensagens Prontas",
+      path: "/settings/ready-messages",
+      icon: MessageSquareText,
+    },
     {
       title: "Webhooks",
       path: "/settings/webhooks",
@@ -54,6 +66,8 @@ export default function Settings() {
       {/* Settings Content */}
       <div className="flex-1 overflow-auto">
         <Switch>
+          <Route path="/settings/tags" component={TagsSettings} />
+          <Route path="/settings/ready-messages" component={ReadyMessagesSettings} />
           <Route path="/settings/webhooks" component={WebhooksSettings} />
           <Route path="/settings/channels" component={ChannelsSettings} />
           <Route>

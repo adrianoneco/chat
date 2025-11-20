@@ -16,6 +16,7 @@ import { ConversationDetailsSidebar } from "@/components/ConversationDetailsSide
 import { ForwardMessageModal } from "@/components/ForwardMessageModal";
 import TransferConversationModal from "@/components/TransferConversationModal";
 import { NewConversationModal } from "@/components/NewConversationModal";
+import { ManageTagsModal } from "@/components/ManageTagsModal";
 import { cn } from "@/lib/utils";
 import type { ConversationWithUsers, MessageWithSender, User } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,6 +40,7 @@ export default function Home() {
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferTargetConversationId, setTransferTargetConversationId] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
+  const [tagsModalOpen, setTagsModalOpen] = useState(false);
 
   useEffect(() => {
     if (conversationIdFromRoute) {
@@ -577,6 +579,10 @@ export default function Home() {
     setReplyingTo(null);
   };
 
+  const handleManageTags = () => {
+    setTagsModalOpen(true);
+  };
+
   if (isAuthLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -646,6 +652,7 @@ export default function Home() {
                   onReopenConversation={() => handleReopenConversation(selectedConversation.id)}
                   onTransferConversation={() => handleTransferConversation(selectedConversation.id)}
                   onDeleteConversation={() => handleDeleteConversation(selectedConversation.id)}
+                  onManageTags={handleManageTags}
                 />
                 <ChatArea 
                   messages={messages} 
@@ -671,6 +678,13 @@ export default function Home() {
                       setUploadAbortController(null);
                     }
                   }}
+                  conversationData={selectedConversation ? {
+                    clientFirstName: selectedConversation.client.firstName,
+                    clientLastName: selectedConversation.client.lastName,
+                    attendantFirstName: selectedConversation.attendant?.firstName,
+                    attendantLastName: selectedConversation.attendant?.lastName,
+                    protocolNumber: selectedConversation.protocolNumber,
+                  } : undefined}
                 />
               </>
             ) : (
@@ -711,6 +725,13 @@ export default function Home() {
         onOpenChange={setNewConversationModalOpen}
         onSelectContact={handleSelectContact}
       />
+      {selectedConversationId && (
+        <ManageTagsModal
+          conversationId={selectedConversationId}
+          isOpen={tagsModalOpen}
+          onClose={() => setTagsModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

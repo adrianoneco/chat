@@ -1,4 +1,4 @@
-import { Phone, Video, MonitorUp, MoreVertical, Play, XCircle, RotateCcw, Users, Trash2 } from "lucide-react";
+import { Phone, Video, MonitorUp, MoreVertical, Play, XCircle, RotateCcw, Users, Trash2, Tag } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ interface ConversationHeaderProps {
   onReopenConversation?: () => void;
   onTransferConversation?: () => void;
   onDeleteConversation?: () => void;
+  onManageTags?: () => void;
 }
 
 export function ConversationHeader({
@@ -34,6 +35,7 @@ export function ConversationHeader({
   onReopenConversation,
   onTransferConversation,
   onDeleteConversation,
+  onManageTags,
 }: ConversationHeaderProps) {
   const getStatusDotColor = (status: string) => {
     switch (status) {
@@ -174,6 +176,12 @@ export function ConversationHeader({
                 <DropdownMenuItem onClick={onTransferConversation}>
                   <Users className="mr-2 h-4 w-4" />
                   Transferir
+                </DropdownMenuItem>
+              )}
+              {onManageTags && (
+                <DropdownMenuItem onClick={onManageTags}>
+                  <Tag className="mr-2 h-4 w-4" />
+                  Tags
                 </DropdownMenuItem>
               )}
               {onDeleteConversation && (

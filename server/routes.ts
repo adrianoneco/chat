@@ -397,9 +397,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/clients/:id', requireRole('admin', 'attendant'), async (req, res) => {
+  app.patch('/api/clients/:id', isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
+      const userRole = req.session.userRole!;
+      const userId = req.session.userId!;
+      
+      // Admins and attendants can edit any client, clients can only edit themselves
+      if (userRole === 'client' && userId !== id) {
+        return res.status(403).json({ message: 'Você só pode editar seu próprio perfil' });
+      }
+      
       const { email, password, firstName, lastName, profileImageUrl } = req.body;
       
       const updateData: any = { firstName, lastName, profileImageUrl };
@@ -729,11 +737,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/upload/profile-image/:userId', isAuthenticated, upload.single('file'), async (req, res) => {
     try {
       const { userId } = req.params;
-      const currentUserId = req.session.userId!;
       const userRole = req.session.userRole!;
+      const sessionUserId = req.session.userId!;
       
-      if (currentUserId !== userId && userRole !== 'admin') {
-        return res.status(403).json({ message: 'Não autorizado' });
+      // Admins and attendants can upload photos for any user, clients can only upload for themselves
+      if (userRole === 'client' && sessionUserId !== userId) {
+        return res.status(403).json({ message: 'Você só pode alterar sua própria foto de perfil' });
       }
 
       if (!req.file) {

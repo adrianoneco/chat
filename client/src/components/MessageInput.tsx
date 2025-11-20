@@ -1,11 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { Mic, Video, Image as ImageIcon, Paperclip, Send, X, Reply, Square } from "lucide-react";
+import { Mic, Video, Image as ImageIcon, Paperclip, Send, X, Reply, Square, Sparkles, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import { UploadProgress } from "./UploadProgress";
-import type { MessageWithSender } from "@shared/schema";
+import type { MessageWithSender, ReadyMessage } from "@shared/schema";
 
 interface MessageInputProps {
   onSendMessage: (content: string, replyToId?: string) => void;
@@ -16,6 +23,13 @@ interface MessageInputProps {
   uploadProgress?: number;
   uploadFileName?: string;
   onCancelUpload?: () => void;
+  conversationData?: {
+    clientFirstName: string;
+    clientLastName: string;
+    attendantFirstName?: string;
+    attendantLastName?: string;
+    protocolNumber: string;
+  };
 }
 
 export function MessageInput({ 
@@ -26,19 +40,25 @@ export function MessageInput({
   onCancelReply,
   uploadProgress,
   uploadFileName,
-  onCancelUpload 
+  onCancelUpload,
+  conversationData 
 }: MessageInputProps) {
   const { toast } = useToast();
   const [message, setMessage] = useState("");
   const [height, setHeight] = useState(60);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingType, setRecordingType] = useState<'audio' | 'video' | null>(null);
+  const [isCorrecting, setIsCorrecting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  const { data: readyMessages = [] } = useQuery<ReadyMessage[]>({
+    queryKey: ["/api/ready-messages"],
+  });
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
@@ -141,6 +161,56 @@ export function MessageInput({
     e.target.value = '';
   };
 
+  const handleCorrectText = async () => {
+    if (!message.trim()) {
+      toast({ title: "Digite uma mensagem para corrigir", variant: "destructive" });
+      return;
+    }
+
+    setIsCorrecting(true);
+    try {
+      const response = await fetch("/api/groq/correct-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: message }),
+      });
+
+      if (!response.ok) throw new Error("Erro ao corrigir texto");
+
+      const data = await response.json();
+      setMessage(data.correctedText);
+      toast({ title: "Texto corrigido com sucesso!" });
+    } catch (error) {
+      toast({ title: "Erro ao corrigir texto", variant: "destructive" });
+    } finally {
+      setIsCorrecting(false);
+    }
+  };
+
+  const replaceParameters = (content: string): string => {
+    if (!conversationData) return content;
+
+    const currentDate = new Date().toLocaleDateString('pt-BR');
+    const currentTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    return content
+      .replace(/{{clientFirstName}}/g, conversationData.clientFirstName || '')
+      .replace(/{{clientLastName}}/g, conversationData.clientLastName || '')
+      .replace(/{{clientFullName}}/g, `${conversationData.clientFirstName} ${conversationData.clientLastName}`.trim())
+      .replace(/{{attendantFirstName}}/g, conversationData.attendantFirstName || '')
+      .replace(/{{attendantLastName}}/g, conversationData.attendantLastName || '')
+      .replace(/{{attendantFullName}}/g, `${conversationData.attendantFirstName || ''} ${conversationData.attendantLastName || ''}`.trim())
+      .replace(/{{protocolNumber}}/g, conversationData.protocolNumber || '')
+      .replace(/{{currentDate}}/g, currentDate)
+      .replace(/{{currentTime}}/g, currentTime);
+  };
+
+  const handleSelectReadyMessage = (readyMessage: ReadyMessage) => {
+    const processedContent = replaceParameters(readyMessage.content);
+    setMessage(processedContent);
+    toast({ title: `Mensagem "${readyMessage.title}" inserida!` });
+  };
+
   return (
     <div
       className="bg-background border-t border-border p-4"
@@ -224,6 +294,68 @@ export function MessageInput({
       )}
       
       <div className="flex items-end gap-2">
+        {/* Left buttons: Text correction and Ready messages */}
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={disabled || isRecording || isCorrecting}
+                onClick={handleCorrectText}
+                className="h-9 w-9 flex-shrink-0"
+                data-testid="button-correct-text"
+              >
+                <Sparkles className={`w-4 h-4 ${isCorrecting ? 'animate-pulse' : ''}`} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{isCorrecting ? 'Corrigindo...' : 'Corrigir texto com IA'}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={disabled || isRecording}
+                    className="h-9 w-9 flex-shrink-0"
+                    data-testid="button-ready-messages"
+                  >
+                    <MessageSquareText className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Mensagens prontas</p>
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+              {readyMessages.length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  Nenhuma mensagem pronta cadastrada
+                </div>
+              ) : (
+                readyMessages.map((msg) => (
+                  <DropdownMenuItem
+                    key={msg.id}
+                    onClick={() => handleSelectReadyMessage(msg)}
+                    className="cursor-pointer flex-col items-start"
+                  >
+                    <div className="font-medium text-sm">{msg.title}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                      {msg.content}
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         <div className="flex-1 relative">
           <Textarea
             ref={textareaRef}
