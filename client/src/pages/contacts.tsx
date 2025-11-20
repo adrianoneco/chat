@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Plus, Pencil, Trash2, ContactRound, MessageSquare } from "lucide-react";
 import type { User } from "@shared/schema";
@@ -18,6 +19,7 @@ export default function Contacts() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const { subscribe } = useWebSocket();
+  const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<User | null>(null);
   const [formData, setFormData] = useState({
@@ -27,6 +29,9 @@ export default function Contacts() {
     lastName: "",
     profileImageUrl: "",
   });
+
+  // Only admin and attendant can manage contacts
+  const canManageContacts = user?.role === 'admin' || user?.role === 'attendant';
 
   const { data: contacts = [], isLoading } = useQuery<User[]>({
     queryKey: ["/api/clients"],
@@ -195,10 +200,12 @@ export default function Contacts() {
               <p className="text-muted-foreground">Gerenciar clientes e iniciar conversas</p>
             </div>
           </div>
-          <Button onClick={() => handleOpenDialog()} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Adicionar Contato
-          </Button>
+          {canManageContacts && (
+            <Button onClick={() => handleOpenDialog()} className="gap-2" data-testid="button-add-contact">
+              <Plus className="w-4 h-4" />
+              Adicionar Contato
+            </Button>
+          )}
         </div>
 
         {isLoading ? (
@@ -208,8 +215,14 @@ export default function Contacts() {
             <CardContent className="py-12 text-center">
               <ContactRound className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium mb-2">Nenhum contato cadastrado</p>
-              <p className="text-muted-foreground mb-4">Comece adicionando o primeiro contato</p>
-              <Button onClick={() => handleOpenDialog()}>Adicionar Contato</Button>
+              <p className="text-muted-foreground mb-4">
+                {canManageContacts ? "Comece adicionando o primeiro contato" : "Nenhum contato disponível"}
+              </p>
+              {canManageContacts && (
+                <Button onClick={() => handleOpenDialog()} data-testid="button-add-first-contact">
+                  Adicionar Contato
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -235,34 +248,39 @@ export default function Contacts() {
                     className="w-full gap-2"
                     onClick={() => startConversationMutation.mutate(contact.id)}
                     disabled={startConversationMutation.isPending}
+                    data-testid={`button-start-conversation-${contact.id}`}
                   >
                     <MessageSquare className="w-4 h-4" />
                     Iniciar Conversa
                   </Button>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 gap-2"
-                      onClick={() => handleOpenDialog(contact)}
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Editar
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-destructive hover:text-destructive"
-                      onClick={() => {
-                        if (confirm("Tem certeza que deseja deletar este contato?")) {
-                          deleteMutation.mutate(contact.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Deletar
-                    </Button>
-                  </div>
+                  {canManageContacts && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => handleOpenDialog(contact)}
+                        data-testid={`button-edit-contact-${contact.id}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 text-destructive hover:text-destructive"
+                        onClick={() => {
+                          if (confirm("Tem certeza que deseja deletar este contato?")) {
+                            deleteMutation.mutate(contact.id);
+                          }
+                        }}
+                        data-testid={`button-delete-contact-${contact.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Deletar
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
