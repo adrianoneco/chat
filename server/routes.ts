@@ -17,13 +17,7 @@ import { correctText, generateReadyMessage } from "./groq";
 import { sendPasswordResetEmail } from "./email";
 import { initializeWebSocket, wsManager } from "./websocket";
 import { EvolutionAPIClient } from "./evolution-api";
-
-// Helper function to normalize WhatsApp JID to phone number
-function normalizePhoneNumber(jid: string | undefined): string | undefined {
-  if (!jid) return undefined;
-  // Remove @s.whatsapp.net or @c.us suffix and return clean number
-  return jid.replace(/@s\.whatsapp\.net|@c\.us/g, '');
-}
+import { normalizePhoneNumber, normalizeContactName } from "./utils/phone";
 
 // Helper function to generate a random secure password for WhatsApp contacts
 // These contacts cannot login anyway, so the password is just for data integrity
@@ -2049,7 +2043,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               client = await storage.createUser({
                 email: `${phoneNumber}@whatsapp`,
                 password: await hashPassword(generateSecureRandomPassword()),
-                firstName: message.pushName || phoneNumber,
+                firstName: normalizeContactName(message.pushName, phoneNumber),
                 lastName: '',
                 role: 'client',
                 sidebarCollapsed: 'false',
@@ -2062,7 +2056,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isNewClient = true;
             } else {
               // Update existing contact with new profile picture and name if needed
-              const needsNameUpdate = message.pushName && message.pushName !== client.firstName;
+              const normalizedName = normalizeContactName(message.pushName, phoneNumber);
+              const needsNameUpdate = normalizedName !== client.firstName;
               const needsProfileUpdate = !client.profileImageUrl;
               
               if (needsNameUpdate || needsProfileUpdate) {
@@ -2079,7 +2074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   
                   const updateData: any = {};
                   if (needsNameUpdate) {
-                    updateData.firstName = message.pushName;
+                    updateData.firstName = normalizedName;
                   }
                   if (profileImageUrl && profileImageUrl !== client.profileImageUrl) {
                     updateData.profileImageUrl = profileImageUrl;
@@ -2310,26 +2305,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Send WebSocket notification for presence (typing, online, offline)
           if (wsManager && presenceData.id) {
-            const phoneNumber = presenceData.id.replace('@s.whatsapp.net', '');
-            const client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+            const phoneNumber = normalizePhoneNumber(presenceData.id);
+            if (phoneNumber) {
+              const client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
             
-            if (client) {
-              const conversations = await storage.getConversations(client.id);
-              const activeConversation = conversations.find(c => c.status !== 'closed');
-              
-              if (activeConversation) {
-                const participantIds = [activeConversation.clientId];
-                if (activeConversation.attendantId) participantIds.push(activeConversation.attendantId);
+              if (client) {
+                const conversations = await storage.getConversations(client.id);
+                const activeConversation = conversations.find(c => c.status !== 'closed');
                 
-                // Notify presence change via WebSocket
-                wsManager.sendToUsers(participantIds, {
-                  type: 'presence_update',
-                  payload: {
-                    conversationId: activeConversation.id,
-                    userId: client.id,
-                    presence: presenceData.presences?.[0]?.lastKnownPresence || 'unavailable'
-                  }
-                });
+                if (activeConversation) {
+                  const participantIds = [activeConversation.clientId];
+                  if (activeConversation.attendantId) participantIds.push(activeConversation.attendantId);
+                  
+                  // Notify presence change via WebSocket
+                  wsManager.sendToUsers(participantIds, {
+                    type: 'presence_update',
+                    payload: {
+                      conversationId: activeConversation.id,
+                      userId: client.id,
+                      presence: presenceData.presences?.[0]?.lastKnownPresence || 'unavailable'
+                    }
+                  });
+                }
               }
             }
           }
@@ -2362,7 +2359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (Array.isArray(contactsData)) {
             for (const contact of contactsData) {
               try {
-                const phoneNumber = contact.id?.replace('@s.whatsapp.net', '') || contact.id;
+                const phoneNumber = normalizePhoneNumber(contact.id);
                 if (!phoneNumber) continue;
                 
                 const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
@@ -2409,7 +2406,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Update contact in the system
           if (contactUpdate && contactUpdate.id) {
             try {
-              const phoneNumber = contactUpdate.id.replace('@s.whatsapp.net', '');
+              const phoneNumber = normalizePhoneNumber(contactUpdate.id);
+              if (!phoneNumber) break;
               const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
               
               if (existingClient) {
@@ -2437,7 +2435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (Array.isArray(contactUpsert)) {
             for (const contact of contactUpsert) {
               try {
-                const phoneNumber = contact.id?.replace('@s.whatsapp.net', '') || contact.id;
+                const phoneNumber = normalizePhoneNumber(contact.id);
                 if (!phoneNumber) continue;
                 
                 const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
@@ -2478,7 +2476,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (contactUpsert && contactUpsert.id) {
             // Single contact upsert
             try {
-              const phoneNumber = contactUpsert.id.replace('@s.whatsapp.net', '');
+              const phoneNumber = normalizePhoneNumber(contactUpsert.id);
+              if (!phoneNumber) break;
               const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
               
               if (existingClient) {

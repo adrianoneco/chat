@@ -1,5 +1,6 @@
 import { EvolutionAPIClient } from './evolution-api';
 import type { IStorage } from './storage';
+import { normalizePhoneNumber, normalizeContactName } from './utils/phone';
 
 export interface EvolutionConfig {
   apiUrl: string;
@@ -127,13 +128,6 @@ export async function initializeEvolutionInstance(
   }
 }
 
-// Helper function to normalize WhatsApp JID to phone number
-function normalizePhoneNumber(jid: string | undefined): string | undefined {
-  if (!jid) return undefined;
-  // Remove @s.whatsapp.net or @c.us suffix and return clean number
-  return jid.replace(/@s\.whatsapp\.net|@c\.us/g, '');
-}
-
 async function syncMessagesAndContacts(
   storage: IStorage,
   evolutionClient: EvolutionAPIClient,
@@ -166,9 +160,7 @@ async function syncMessagesAndContacts(
       }
 
       // Validate and normalize contact name
-      const contactName = (chat.name && typeof chat.name === 'string' && chat.name.trim()) 
-        ? chat.name.trim() 
-        : phoneNumber;
+      const contactName = normalizeContactName(chat.name, phoneNumber);
 
       let client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
       
