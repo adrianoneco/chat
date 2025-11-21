@@ -169,4 +169,17 @@ export class EvolutionAPIClient {
       return [];
     }
   }
+
+  async fetchProfilePicture(instanceName: string, phoneNumber: string): Promise<string | null> {
+    try {
+      const remoteJid = phoneNumber.includes('@') ? phoneNumber : `${phoneNumber}@s.whatsapp.net`;
+      const response = await this.client.post(`/chat/fetchProfilePictureUrl/${instanceName}`, {
+        number: remoteJid,
+      });
+      return response.data?.profilePictureUrl || null;
+    } catch (error: any) {
+      console.error('[EvolutionAPI] Error fetching profile picture:', error.response?.data || error.message);
+      return null;
+    }
+  }
 }

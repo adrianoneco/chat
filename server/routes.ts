@@ -2028,6 +2028,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             let isNewClient = false;
             
             if (!client) {
+              // Try to fetch profile picture from Evolution API
+              let profileImageUrl: string | null = null;
+              try {
+                const evolutionClient = new EvolutionAPIClient({
+                  apiUrl: channel.apiUrl,
+                  apiKey: channel.apiKey,
+                });
+                profileImageUrl = await evolutionClient.fetchProfilePicture(instanceId, phoneNumber);
+              } catch (error) {
+                console.error('[Evolution API] Error fetching profile picture:', error);
+              }
+
               // Create new WhatsApp contact (not a login user)
               client = await storage.createUser({
                 email: `${phoneNumber}@whatsapp`,
@@ -2038,11 +2050,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 sidebarCollapsed: 'false',
                 isWhatsAppContact: true,
                 phoneNumber: phoneNumber,
-                profileImageUrl: null,
+                profileImageUrl: profileImageUrl,
                 resetToken: null,
                 resetTokenExpiry: null,
               });
               isNewClient = true;
+            } else if (!client.profileImageUrl || message.pushName !== client.firstName) {
+              // Update existing contact with new profile picture and name
+              try {
+                const evolutionClient = new EvolutionAPIClient({
+                  apiUrl: channel.apiUrl,
+                  apiKey: channel.apiKey,
+                });
+                const profileImageUrl = await evolutionClient.fetchProfilePicture(instanceId, phoneNumber);
+                
+                await storage.updateUser(client.id, {
+                  firstName: message.pushName || client.firstName,
+                  profileImageUrl: profileImageUrl || client.profileImageUrl,
+                });
+                
+                // Refresh client object
+                client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+              } catch (error) {
+                console.error('[Evolution API] Error updating contact profile:', error);
+              }
             }
             
             // Trigger webhooks for new user/contact if client was just created
@@ -2052,15 +2083,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               triggerWebhook('contact.created', clientWithoutPassword);
             }
 
-            // Find or create conversation
+            // Find or create conversation for this Evolution channel
             const conversations = await storage.getConversations(client.id);
-            let conversation = conversations.find(c => c.status !== 'closed');
+            let conversation = conversations.find(c => 
+              c.status !== 'closed' && 
+              c.channelId === 'evolution' && 
+              c.channelConversationId === message.key.remoteJid
+            );
             let isNewConversation = false;
             
             if (!conversation) {
               const newConv = await storage.createConversation({
                 clientId: client.id,
                 status: 'pending',
+                channelId: 'evolution',
+                channelConversationId: message.key.remoteJid,
               });
               conversation = await storage.getConversation(newConv.id);
               isNewConversation = true;

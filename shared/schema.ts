@@ -83,6 +83,10 @@ export type ConversationStatus = typeof conversationStatuses[number];
 export const conversationModes = ["attendant", "ia-agent"] as const;
 export type ConversationMode = typeof conversationModes[number];
 
+// Conversation channels
+export const conversationChannels = ["web", "evolution", "telegram"] as const;
+export type ConversationChannel = typeof conversationChannels[number];
+
 // Conversations table
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -92,6 +96,8 @@ export const conversations = pgTable("conversations", {
   clientId: varchar("client_id").notNull().references(() => users.id),
   attendantId: varchar("attendant_id").references(() => users.id),
   clientLocation: text("client_location"),
+  channelId: varchar("channel_id").$type<ConversationChannel>().default("web"),
+  channelConversationId: varchar("channel_conversation_id"),
   lastMessage: text("last_message"),
   lastMessageAt: timestamp("last_message_at"),
   deleted: boolean("deleted").notNull().default(false),
@@ -112,6 +118,8 @@ export const insertConversationSchema = createInsertSchema(conversations).omit({
   attendantId: true,
   clientLocation: true,
   mode: true,
+  channelId: true,
+  channelConversationId: true,
 });
 
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
