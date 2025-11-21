@@ -2249,6 +2249,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
           break;
         }
 
+        case 'contacts.set':
+        case 'CONTACTS_SET': {
+          const contactsData = data.data;
+          console.log('[Evolution API] Contacts set event received - bulk contact sync');
+          
+          // Process bulk contact updates
+          triggerWebhook('evolution.contacts.set', contactsData);
+          
+          // Update or create contacts in the system
+          if (Array.isArray(contactsData)) {
+            for (const contact of contactsData) {
+              try {
+                const phoneNumber = contact.id?.replace('@s.whatsapp.net', '') || contact.id;
+                if (!phoneNumber) continue;
+                
+                const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+                
+                if (existingClient) {
+                  // Update existing contact
+                  await storage.updateUser(existingClient.id, {
+                    firstName: contact.name || contact.notify || contact.pushName || existingClient.firstName,
+                    profileImageUrl: contact.profilePictureUrl || existingClient.profileImageUrl,
+                  });
+                  console.log('[Evolution API] Contact updated:', phoneNumber);
+                } else {
+                  // Create new contact
+                  await storage.createUser({
+                    email: `${phoneNumber}@whatsapp`,
+                    password: await hashPassword('whatsapp-user'),
+                    firstName: contact.name || contact.notify || contact.pushName || phoneNumber,
+                    lastName: '',
+                    role: 'client',
+                    sidebarCollapsed: 'false',
+                    profileImageUrl: contact.profilePictureUrl || null,
+                    resetToken: null,
+                    resetTokenExpiry: null,
+                  });
+                  console.log('[Evolution API] Contact created:', phoneNumber);
+                }
+              } catch (error: any) {
+                console.error('[Evolution API] Error processing contact:', error.message);
+              }
+            }
+          }
+          break;
+        }
+
+        case 'contacts.update':
+        case 'CONTACTS_UPDATE': {
+          const contactUpdate = data.data;
+          console.log('[Evolution API] Contact update event received');
+          
+          triggerWebhook('evolution.contacts.update', contactUpdate);
+          
+          // Update contact in the system
+          if (contactUpdate && contactUpdate.id) {
+            try {
+              const phoneNumber = contactUpdate.id.replace('@s.whatsapp.net', '');
+              const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+              
+              if (existingClient) {
+                await storage.updateUser(existingClient.id, {
+                  firstName: contactUpdate.name || contactUpdate.notify || contactUpdate.pushName || existingClient.firstName,
+                  profileImageUrl: contactUpdate.profilePictureUrl || existingClient.profileImageUrl,
+                });
+                console.log('[Evolution API] Contact updated:', phoneNumber);
+              }
+            } catch (error: any) {
+              console.error('[Evolution API] Error updating contact:', error.message);
+            }
+          }
+          break;
+        }
+
+        case 'contacts.upsert':
+        case 'CONTACTS_UPSERT': {
+          const contactUpsert = data.data;
+          console.log('[Evolution API] Contact upsert event received');
+          
+          triggerWebhook('evolution.contacts.upsert', contactUpsert);
+          
+          // Upsert contact in the system (create or update)
+          if (Array.isArray(contactUpsert)) {
+            for (const contact of contactUpsert) {
+              try {
+                const phoneNumber = contact.id?.replace('@s.whatsapp.net', '') || contact.id;
+                if (!phoneNumber) continue;
+                
+                const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+                
+                if (existingClient) {
+                  // Update existing contact
+                  await storage.updateUser(existingClient.id, {
+                    firstName: contact.name || contact.notify || contact.pushName || existingClient.firstName,
+                    profileImageUrl: contact.profilePictureUrl || existingClient.profileImageUrl,
+                  });
+                  console.log('[Evolution API] Contact upserted (updated):', phoneNumber);
+                } else {
+                  // Create new contact
+                  const newClient = await storage.createUser({
+                    email: `${phoneNumber}@whatsapp`,
+                    password: await hashPassword('whatsapp-user'),
+                    firstName: contact.name || contact.notify || contact.pushName || phoneNumber,
+                    lastName: '',
+                    role: 'client',
+                    sidebarCollapsed: 'false',
+                    profileImageUrl: contact.profilePictureUrl || null,
+                    resetToken: null,
+                    resetTokenExpiry: null,
+                  });
+                  
+                  // Trigger webhook for new contact
+                  const { password, resetToken, resetTokenExpiry, ...clientWithoutPassword } = newClient;
+                  triggerWebhook('contact.created', clientWithoutPassword);
+                  
+                  console.log('[Evolution API] Contact upserted (created):', phoneNumber);
+                }
+              } catch (error: any) {
+                console.error('[Evolution API] Error upserting contact:', error.message);
+              }
+            }
+          } else if (contactUpsert && contactUpsert.id) {
+            // Single contact upsert
+            try {
+              const phoneNumber = contactUpsert.id.replace('@s.whatsapp.net', '');
+              const existingClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+              
+              if (existingClient) {
+                await storage.updateUser(existingClient.id, {
+                  firstName: contactUpsert.name || contactUpsert.notify || contactUpsert.pushName || existingClient.firstName,
+                  profileImageUrl: contactUpsert.profilePictureUrl || existingClient.profileImageUrl,
+                });
+                console.log('[Evolution API] Contact upserted (updated):', phoneNumber);
+              } else {
+                const newClient = await storage.createUser({
+                  email: `${phoneNumber}@whatsapp`,
+                  password: await hashPassword('whatsapp-user'),
+                  firstName: contactUpsert.name || contactUpsert.notify || contactUpsert.pushName || phoneNumber,
+                  lastName: '',
+                  role: 'client',
+                  sidebarCollapsed: 'false',
+                  profileImageUrl: contactUpsert.profilePictureUrl || null,
+                  resetToken: null,
+                  resetTokenExpiry: null,
+                });
+                
+                const { password, resetToken, resetTokenExpiry, ...clientWithoutPassword } = newClient;
+                triggerWebhook('contact.created', clientWithoutPassword);
+                
+                console.log('[Evolution API] Contact upserted (created):', phoneNumber);
+              }
+            } catch (error: any) {
+              console.error('[Evolution API] Error upserting contact:', error.message);
+            }
+          }
+          break;
+        }
+
         default:
           console.log('[Evolution API] Unhandled event type:', data.event);
           triggerWebhook('evolution.event.unhandled', data);
