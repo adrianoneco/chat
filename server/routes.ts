@@ -557,11 +557,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Status inválido' });
       }
 
-      await storage.updateConversationStatus(id, status);
-      
-      // Vincular o atendente quando assumir a conversa
+      let updateSuccess = true;
+
+      // Se estiver assumindo a conversa (attending), usar o método atômico
       if (status === 'attending') {
-        await storage.updateConversationAttendant(id, userId);
+        updateSuccess = await storage.updateConversationStatusAndAssignAttendant(id, status, userId);
+        
+        if (!updateSuccess) {
+          const conversation = await storage.getConversation(id);
+          if (!conversation) {
+            return res.status(404).json({ message: 'Conversa não encontrada' });
+          }
+          
+          return res.status(409).json({ 
+            message: 'Esta conversa já está sendo atendida por outro atendente. Use a função de transferência para assumir.',
+            currentAttendant: conversation.attendant 
+          });
+        }
+      } else {
+        // Para outros status (pending, closed), apenas atualizar o status
+        await storage.updateConversationStatus(id, status);
       }
       
       // Send WebSocket notification to conversation participants

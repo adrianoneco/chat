@@ -38,7 +38,7 @@ import {
   type ReactionWithUser,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, or, desc, and } from "drizzle-orm";
+import { eq, or, desc, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -62,6 +62,7 @@ export interface IStorage {
   updateConversationDeleted(id: string, deleted: boolean): Promise<void>;
   updateConversationAttendant(id: string, attendantId: string): Promise<void>;
   updateConversationMode(id: string, mode: string): Promise<void>;
+  updateConversationStatusAndAssignAttendant(id: string, status: string, attendantId: string): Promise<boolean>;
 
   // Message operations
   getMessage(id: string): Promise<Message | undefined>;
@@ -311,6 +312,27 @@ export class MemStorage implements IStorage {
       conv.updatedAt = new Date();
       this.conversations.set(id, conv);
     }
+  }
+
+  async updateConversationStatusAndAssignAttendant(id: string, status: string, attendantId: string): Promise<boolean> {
+    const conv = this.conversations.get(id);
+    if (!conv) {
+      return false;
+    }
+    
+    // Only update if no attendant is assigned or the same attendant is reassigning
+    if (conv.attendantId && conv.attendantId !== attendantId) {
+      return false;
+    }
+    
+    conv.status = status as any;
+    conv.attendantId = attendantId;
+    conv.updatedAt = new Date();
+    if (status === "closed") {
+      conv.closedAt = new Date();
+    }
+    this.conversations.set(id, conv);
+    return true;
   }
 
   // Message operations
@@ -860,6 +882,41 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(conversations.id, id));
+  }
+
+  async updateConversationStatusAndAssignAttendant(id: string, status: string, attendantId: string): Promise<boolean> {
+    try {
+      // Atualização condicional: só atualiza se attendantId for NULL ou igual ao attendantId fornecido
+      const updateData: any = {
+        status: status as any,
+        attendantId,
+        updatedAt: new Date(),
+      };
+      
+      if (status === "closed") {
+        updateData.closedAt = new Date();
+      }
+      
+      const result = await db
+        .update(conversations)
+        .set(updateData)
+        .where(
+          and(
+            eq(conversations.id, id),
+            or(
+              isNull(conversations.attendantId),
+              eq(conversations.attendantId, attendantId)
+            )
+          )
+        );
+      
+      // Verificar se alguma linha foi afetada
+      // Se nenhuma linha foi afetada, significa que já tem outro atendente
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      console.error('Error in updateConversationStatusAndAssignAttendant:', error);
+      return false;
+    }
   }
 
   // Message operations
