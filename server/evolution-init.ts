@@ -127,6 +127,13 @@ export async function initializeEvolutionInstance(
   }
 }
 
+// Helper function to normalize WhatsApp JID to phone number
+function normalizePhoneNumber(jid: string | undefined): string | undefined {
+  if (!jid) return undefined;
+  // Remove @s.whatsapp.net or @c.us suffix and return clean number
+  return jid.replace(/@s\.whatsapp\.net|@c\.us/g, '');
+}
+
 async function syncMessagesAndContacts(
   storage: IStorage,
   evolutionClient: EvolutionAPIClient,
@@ -137,8 +144,32 @@ async function syncMessagesAndContacts(
     console.log(`[Evolution Sync] Found ${chats.length} chats to sync`);
     
     for (const chat of chats.slice(0, 10)) {
-      const phoneNumber = chat.id.replace('@s.whatsapp.net', '').replace('@c.us', '');
+      // Skip chats without valid ID
+      if (!chat || !chat.id || typeof chat.id !== 'string') {
+        console.warn('[Evolution Sync] Skipping chat with invalid ID:', chat);
+        continue;
+      }
+
+      const phoneNumber = normalizePhoneNumber(chat.id);
       
+      if (!phoneNumber) {
+        console.warn('[Evolution Sync] Could not normalize phone number from:', chat.id);
+        continue;
+      }
+      
+      // Fetch profile picture from Evolution API
+      let profileImageUrl: string | null = null;
+      try {
+        profileImageUrl = await evolutionClient.fetchProfilePicture(instanceName, phoneNumber);
+      } catch (error) {
+        console.error('[Evolution Sync] Error fetching profile picture for:', phoneNumber);
+      }
+
+      // Validate and normalize contact name
+      const contactName = (chat.name && typeof chat.name === 'string' && chat.name.trim()) 
+        ? chat.name.trim() 
+        : phoneNumber;
+
       let client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
       
       if (!client) {
@@ -148,17 +179,37 @@ async function syncMessagesAndContacts(
         client = await storage.createUser({
           email: `${phoneNumber}@whatsapp`,
           password: await hashPassword(crypto.randomBytes(32).toString('hex')),
-          firstName: chat.name || phoneNumber,
+          firstName: contactName,
           lastName: '',
           role: 'client',
           sidebarCollapsed: 'false',
           isWhatsAppContact: true,
           phoneNumber: phoneNumber,
-          profileImageUrl: null,
+          profileImageUrl: profileImageUrl,
           resetToken: null,
           resetTokenExpiry: null,
         });
-        console.log(`[Evolution Sync] Created contact: ${phoneNumber}`);
+        console.log(`[Evolution Sync] Created contact: ${client.id}`);
+      } else {
+        // Update existing contact if name or profile picture changed
+        const updateData: any = {};
+        
+        if (contactName && contactName !== client.firstName) {
+          updateData.firstName = contactName;
+        }
+        
+        if (profileImageUrl && profileImageUrl !== client.profileImageUrl) {
+          updateData.profileImageUrl = profileImageUrl;
+        }
+        
+        if (Object.keys(updateData).length > 0) {
+          try {
+            await storage.updateUser(client.id, updateData);
+            console.log(`[Evolution Sync] Updated contact: ${client.id}`);
+          } catch (error: any) {
+            console.error('[Evolution Sync] Error updating contact:', error.message);
+          }
+        }
       }
     }
     

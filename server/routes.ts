@@ -2021,7 +2021,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Only process incoming messages (not from us)
           if (!message.key.fromMe && message.message) {
-            const phoneNumber = message.key.remoteJid.replace('@s.whatsapp.net', '');
+            const phoneNumber = normalizePhoneNumber(message.key.remoteJid);
+            
+            if (!phoneNumber) {
+              console.error('[Evolution API] Invalid phone number from remoteJid:', message.key.remoteJid);
+              return res.json({ success: true });
+            }
             
             // Find or create client by phone number (using email as phoneNumber@whatsapp for now)
             let client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
@@ -2055,24 +2060,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 resetTokenExpiry: null,
               });
               isNewClient = true;
-            } else if (!client.profileImageUrl || message.pushName !== client.firstName) {
-              // Update existing contact with new profile picture and name
-              try {
-                const evolutionClient = new EvolutionAPIClient({
-                  apiUrl: channel.apiUrl,
-                  apiKey: channel.apiKey,
-                });
-                const profileImageUrl = await evolutionClient.fetchProfilePicture(instanceId, phoneNumber);
-                
-                await storage.updateUser(client.id, {
-                  firstName: message.pushName || client.firstName,
-                  profileImageUrl: profileImageUrl || client.profileImageUrl,
-                });
-                
-                // Refresh client object
-                client = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
-              } catch (error) {
-                console.error('[Evolution API] Error updating contact profile:', error);
+            } else {
+              // Update existing contact with new profile picture and name if needed
+              const needsNameUpdate = message.pushName && message.pushName !== client.firstName;
+              const needsProfileUpdate = !client.profileImageUrl;
+              
+              if (needsNameUpdate || needsProfileUpdate) {
+                try {
+                  const evolutionClient = new EvolutionAPIClient({
+                    apiUrl: channel.apiUrl,
+                    apiKey: channel.apiKey,
+                  });
+                  
+                  let profileImageUrl: string | null = client.profileImageUrl;
+                  if (needsProfileUpdate) {
+                    profileImageUrl = await evolutionClient.fetchProfilePicture(instanceId, phoneNumber);
+                  }
+                  
+                  const updateData: any = {};
+                  if (needsNameUpdate) {
+                    updateData.firstName = message.pushName;
+                  }
+                  if (profileImageUrl && profileImageUrl !== client.profileImageUrl) {
+                    updateData.profileImageUrl = profileImageUrl;
+                  }
+                  
+                  if (Object.keys(updateData).length > 0) {
+                    await storage.updateUser(client.id, updateData);
+                    // Refresh client object
+                    const updatedClient = await storage.getUserByEmail(`${phoneNumber}@whatsapp`);
+                    if (updatedClient) {
+                      client = updatedClient;
+                    }
+                  }
+                } catch (error: any) {
+                  console.error('[Evolution API] Error updating contact profile:', error.message);
+                }
               }
             }
             
