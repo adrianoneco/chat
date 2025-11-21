@@ -546,6 +546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { status } = req.body;
+      const userId = req.session.userId!;
       const userRole = req.session.userRole!;
       
       if (userRole !== 'attendant' && userRole !== 'admin') {
@@ -557,6 +558,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.updateConversationStatus(id, status);
+      
+      // Vincular o atendente quando assumir a conversa
+      if (status === 'attending') {
+        await storage.updateConversationAttendant(id, userId);
+      }
       
       // Send WebSocket notification to conversation participants
       if (wsManager) {
