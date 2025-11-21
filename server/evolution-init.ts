@@ -143,13 +143,17 @@ async function syncMessagesAndContacts(
       
       if (!client) {
         const { hashPassword } = await import('./auth');
+        const crypto = await import('crypto');
+        // Create WhatsApp contact with random secure password (they cannot login anyway)
         client = await storage.createUser({
           email: `${phoneNumber}@whatsapp`,
-          password: await hashPassword('whatsapp-user'),
+          password: await hashPassword(crypto.randomBytes(32).toString('hex')),
           firstName: chat.name || phoneNumber,
           lastName: '',
           role: 'client',
           sidebarCollapsed: 'false',
+          isWhatsAppContact: true,
+          phoneNumber: phoneNumber,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,

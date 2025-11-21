@@ -24,6 +24,12 @@ function normalizePhoneNumber(jid: string | undefined): string | undefined {
   // Remove @s.whatsapp.net or @c.us suffix and return clean number
   return jid.replace(/@s\.whatsapp\.net|@c\.us/g, '');
 }
+
+// Helper function to generate a random secure password for WhatsApp contacts
+// These contacts cannot login anyway, so the password is just for data integrity
+function generateSecureRandomPassword(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
 import {
   loginSchema,
   signupSchema,
@@ -124,6 +130,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastName: validatedData.lastName,
         role: 'client',
         sidebarCollapsed: 'false',
+        isWhatsAppContact: false,
+        phoneNumber: null,
         profileImageUrl: null,
         resetToken: null,
         resetTokenExpiry: null,
@@ -154,6 +162,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const user = await storage.getUserByEmail(normalizedEmail);
       if (!user) {
+        return res.status(401).json({ message: 'Email ou senha inválidos' });
+      }
+
+      // Security: Prevent WhatsApp contacts from logging in
+      if (user.isWhatsAppContact) {
         return res.status(401).json({ message: 'Email ou senha inválidos' });
       }
 
@@ -294,6 +307,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profileImageUrl: profileImageUrl || null,
         role: 'attendant',
         sidebarCollapsed: 'false',
+        isWhatsAppContact: false,
+        phoneNumber: null,
         resetToken: null,
         resetTokenExpiry: null,
       });
@@ -392,6 +407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profileImageUrl: profileImageUrl || null,
         role: 'client',
         sidebarCollapsed: 'false',
+        isWhatsAppContact: false,
+        phoneNumber: null,
         resetToken: null,
         resetTokenExpiry: null,
       });
@@ -1085,6 +1102,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Silva',
           role: 'attendant' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1096,6 +1115,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Santos',
           role: 'attendant' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1107,6 +1128,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Oliveira',
           role: 'attendant' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1122,6 +1145,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Pereira',
           role: 'client' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1133,6 +1158,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Costa',
           role: 'client' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1144,6 +1171,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Alves',
           role: 'client' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1155,6 +1184,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Souza',
           role: 'client' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1166,6 +1197,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Lima',
           role: 'client' as const,
           sidebarCollapsed: 'false',
+          isWhatsAppContact: false,
+          phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
           resetTokenExpiry: null,
@@ -1995,14 +2028,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             let isNewClient = false;
             
             if (!client) {
-              // Create new client
+              // Create new WhatsApp contact (not a login user)
               client = await storage.createUser({
                 email: `${phoneNumber}@whatsapp`,
-                password: await hashPassword('whatsapp-user'),
+                password: await hashPassword(generateSecureRandomPassword()),
                 firstName: message.pushName || phoneNumber,
                 lastName: '',
                 role: 'client',
                 sidebarCollapsed: 'false',
+                isWhatsAppContact: true,
+                phoneNumber: phoneNumber,
                 profileImageUrl: null,
                 resetToken: null,
                 resetTokenExpiry: null,
@@ -2274,14 +2309,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   });
                   console.log('[Evolution API] Contact updated:', phoneNumber);
                 } else {
-                  // Create new contact
+                  // Create new WhatsApp contact (not a login user)
                   await storage.createUser({
                     email: `${phoneNumber}@whatsapp`,
-                    password: await hashPassword('whatsapp-user'),
+                    password: await hashPassword(generateSecureRandomPassword()),
                     firstName: contact.name || contact.notify || contact.pushName || phoneNumber,
                     lastName: '',
                     role: 'client',
                     sidebarCollapsed: 'false',
+                    isWhatsAppContact: true,
+                    phoneNumber: phoneNumber,
                     profileImageUrl: contact.profilePictureUrl || null,
                     resetToken: null,
                     resetTokenExpiry: null,
@@ -2347,14 +2384,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   });
                   console.log('[Evolution API] Contact upserted (updated):', phoneNumber);
                 } else {
-                  // Create new contact
+                  // Create new WhatsApp contact (not a login user)
                   const newClient = await storage.createUser({
                     email: `${phoneNumber}@whatsapp`,
-                    password: await hashPassword('whatsapp-user'),
+                    password: await hashPassword(generateSecureRandomPassword()),
                     firstName: contact.name || contact.notify || contact.pushName || phoneNumber,
                     lastName: '',
                     role: 'client',
                     sidebarCollapsed: 'false',
+                    isWhatsAppContact: true,
+                    phoneNumber: phoneNumber,
                     profileImageUrl: contact.profilePictureUrl || null,
                     resetToken: null,
                     resetTokenExpiry: null,
@@ -2383,13 +2422,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
                 console.log('[Evolution API] Contact upserted (updated):', phoneNumber);
               } else {
+                // Create new WhatsApp contact (not a login user)
                 const newClient = await storage.createUser({
                   email: `${phoneNumber}@whatsapp`,
-                  password: await hashPassword('whatsapp-user'),
+                  password: await hashPassword(generateSecureRandomPassword()),
                   firstName: contactUpsert.name || contactUpsert.notify || contactUpsert.pushName || phoneNumber,
                   lastName: '',
                   role: 'client',
                   sidebarCollapsed: 'false',
+                  isWhatsAppContact: true,
+                  phoneNumber: phoneNumber,
                   profileImageUrl: contactUpsert.profilePictureUrl || null,
                   resetToken: null,
                   resetTokenExpiry: null,

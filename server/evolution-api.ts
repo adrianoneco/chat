@@ -96,8 +96,18 @@ export class EvolutionAPIClient {
 
   async getInstanceStatus(instanceName: string): Promise<InstanceStatus> {
     try {
-      const response = await this.client.get(`/instance/fetchInstances/${instanceName}`);
-      return response.data;
+      // Fetch all instances and find the one matching instanceName
+      const response = await this.client.get('/instance/fetchInstances');
+      
+      // Evolution API v2 returns { instances: [...] } object
+      const instancesArray = response.data.instances || (Array.isArray(response.data) ? response.data : [response.data]);
+      const instance = instancesArray.find((i: any) => i.instance?.instanceName === instanceName || i.instanceName === instanceName);
+      
+      if (!instance) {
+        throw new Error('Instance not found');
+      }
+      
+      return { instance: instance.instance || instance };
     } catch (error: any) {
       console.error('[EvolutionAPI] Error fetching instance status:', error.response?.data || error.message);
       throw new Error(`Erro ao buscar status da instância: ${error.response?.data?.message || error.message}`);
@@ -134,7 +144,8 @@ export class EvolutionAPIClient {
 
   async fetchChats(instanceName: string): Promise<any[]> {
     try {
-      const response = await this.client.get(`/chat/fetchChats/${instanceName}`);
+      // Correct endpoint is POST /chat/findChats/{instance}
+      const response = await this.client.post(`/chat/findChats/${instanceName}`, {});
       return response.data || [];
     } catch (error: any) {
       console.error('[EvolutionAPI] Error fetching chats:', error.response?.data || error.message);
