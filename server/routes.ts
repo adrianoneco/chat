@@ -17,6 +17,13 @@ import { correctText, generateReadyMessage } from "./groq";
 import { sendPasswordResetEmail } from "./email";
 import { initializeWebSocket, wsManager } from "./websocket";
 import { EvolutionAPIClient } from "./evolution-api";
+
+// Helper function to normalize WhatsApp JID to phone number
+function normalizePhoneNumber(jid: string | undefined): string | undefined {
+  if (!jid) return undefined;
+  // Remove @s.whatsapp.net or @c.us suffix and return clean number
+  return jid.replace(/@s\.whatsapp\.net|@c\.us/g, '');
+}
 import {
   loginSchema,
   signupSchema,
@@ -1663,10 +1670,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let qrCode: string | undefined;
       let connectionStatus = 'disconnected';
 
+      let instanceCreated = false;
       try {
         // Create instance in EvolutionAPI
         console.log('[EvolutionAPI] Creating instance:', validatedData.instanceId);
         const instanceResponse = await evolutionClient.createInstance(validatedData.instanceId);
+        instanceCreated = true;
         
         // Extract QR code if available
         if (instanceResponse.instance?.qrcode?.base64) {
@@ -1680,38 +1689,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const webhookUrl = `${req.protocol}://${req.get('host')}/api/channels/evolution/webhook/${validatedData.instanceId}`;
         console.log('[EvolutionAPI] Setting webhook:', webhookUrl);
         
-        await evolutionClient.setWebhook(validatedData.instanceId, webhookUrl);
-        console.log('[EvolutionAPI] Webhook configured successfully');
+        const webhookResponse = await evolutionClient.setWebhook(validatedData.instanceId, webhookUrl);
+        
+        // Validate webhook response - fail if webhook is not properly configured
+        if (!webhookResponse.webhook?.url || !webhookResponse.webhook?.events?.length) {
+          throw new Error('Webhook não pôde ser configurado: resposta inválida do EvolutionAPI');
+        }
+        
+        const webhookEvents = webhookResponse.webhook.events;
+        console.log('[EvolutionAPI] Webhook configured successfully:', webhookResponse.webhook);
 
-        // Save channel to database with QR code and connection status
-        const channel = await storage.createChannel({
-          ...validatedData,
-          webhookUrl,
-          config: {
-            qrCode,
-            connectionStatus,
-          },
-          createdBy: userId,
-        } as any);
+        // Save channel to database with QR code, webhook URL and connection status
+        let channel;
+        try {
+          channel = await storage.createChannel({
+            ...validatedData,
+            webhookUrl,
+            config: {
+              qrCode,
+              connectionStatus,
+              webhookConfigured: true,
+              webhookEvents,
+            },
+            createdBy: userId,
+          } as any);
+        } catch (dbError: any) {
+          // If database creation fails, we must clean up the Evolution instance
+          console.error('[EvolutionAPI] Database creation failed, rolling back instance:', dbError.message);
+          throw dbError; // Propagate to outer catch for cleanup
+        }
 
         res.status(201).json(channel);
       } catch (evolutionError: any) {
-        // If EvolutionAPI fails, still save the channel but mark as inactive
-        console.error('[EvolutionAPI] Error during instance creation:', evolutionError.message);
+        // If instance was created but any subsequent step failed, clean up
+        if (instanceCreated) {
+          console.error('[EvolutionAPI] Rolling back - deleting instance:', validatedData.instanceId);
+          try {
+            await evolutionClient.deleteInstance(validatedData.instanceId);
+            console.log('[EvolutionAPI] Instance deleted successfully during rollback');
+          } catch (deleteError: any) {
+            console.error('[EvolutionAPI] Failed to delete instance during rollback:', deleteError.message);
+            // Log but don't fail the error response - the user needs to know about the original error
+          }
+        }
         
-        const channel = await storage.createChannel({
-          ...validatedData,
-          isActive: false,
-          config: {
-            connectionStatus: 'error',
-            errorMessage: evolutionError.message,
-          },
-          createdBy: userId,
-        } as any);
-
-        return res.status(201).json({
-          ...channel,
-          warning: `Canal criado mas houve erro ao criar instância no EvolutionAPI: ${evolutionError.message}`,
+        console.error('[EvolutionAPI] Error during channel creation:', evolutionError.message);
+        
+        return res.status(500).json({
+          message: `Erro ao criar canal: ${evolutionError.message}`,
+          error: evolutionError.message,
+          hint: 'Verifique a URL e API Key do EvolutionAPI e tente novamente.',
         });
       }
     } catch (error) {
@@ -1742,6 +1769,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/channels/:id', requireRole('admin'), async (req, res) => {
     try {
+      const channel = await storage.getChannelById(req.params.id);
+      if (!channel) {
+        return res.status(404).json({ message: 'Canal não encontrado' });
+      }
+
+      // Try to delete the instance from EvolutionAPI
+      try {
+        const evolutionClient = new EvolutionAPIClient({
+          apiUrl: channel.apiUrl,
+          apiKey: channel.apiKey,
+        });
+        await evolutionClient.deleteInstance(channel.instanceId);
+        console.log('[EvolutionAPI] Instance deleted:', channel.instanceId);
+      } catch (evolutionError: any) {
+        console.warn('[EvolutionAPI] Failed to delete instance:', evolutionError.message);
+        // Continue with database deletion even if EvolutionAPI deletion fails
+      }
+
       const success = await storage.deleteChannel(req.params.id);
       if (!success) {
         return res.status(404).json({ message: 'Canal não encontrado' });
@@ -1750,6 +1795,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting channel:', error);
       res.status(500).json({ message: 'Erro ao deletar canal' });
+    }
+  });
+
+  // Get QR Code and status for a channel
+  app.get('/api/channels/:id/qrcode', requireRole('admin'), async (req, res) => {
+    try {
+      const channel = await storage.getChannelById(req.params.id);
+      if (!channel) {
+        return res.status(404).json({ message: 'Canal não encontrado' });
+      }
+
+      const evolutionClient = new EvolutionAPIClient({
+        apiUrl: channel.apiUrl,
+        apiKey: channel.apiKey,
+      });
+
+      const status = await evolutionClient.getInstanceStatus(channel.instanceId);
+      
+      // Determine if channel should be marked as active based on connection state
+      const connectionState = status.instance?.state || status.instance?.status || 'disconnected';
+      const isConnected = connectionState === 'open';
+      
+      // Normalize phone number from WhatsApp JID
+      const normalizedPhone = normalizePhoneNumber(status.instance?.owner);
+      
+      // Update channel with latest status
+      if (isConnected) {
+        // If connected, update with real data
+        await storage.updateChannel(channel.id, {
+          isActive: true,
+          config: {
+            ...channel.config,
+            connectionStatus: connectionState,
+            phoneNumber: normalizedPhone,
+            profileName: status.instance?.profileName || undefined,
+            profilePictureUrl: status.instance?.profilePictureUrl || undefined,
+          },
+        } as any);
+      } else {
+        // If disconnected, clear sensitive data
+        await storage.updateChannel(channel.id, {
+          isActive: false,
+          config: {
+            ...channel.config,
+            connectionStatus: connectionState,
+            qrCode: undefined,
+            phoneNumber: undefined,
+            profileName: undefined,
+            profilePictureUrl: undefined,
+          },
+        } as any);
+      }
+
+      res.json({
+        status: connectionState,
+        instanceName: status.instance?.instanceName,
+        profileName: status.instance?.profileName,
+        phoneNumber: normalizedPhone,
+        isConnected,
+        qrCode: isConnected ? undefined : channel.config?.qrCode,
+      });
+    } catch (error: any) {
+      console.error('Error fetching instance status:', error);
+      res.status(500).json({ message: error.message || 'Erro ao buscar status da instância' });
+    }
+  });
+
+  // Reconnect a channel instance
+  app.post('/api/channels/:id/reconnect', requireRole('admin'), async (req, res) => {
+    try {
+      const channel = await storage.getChannelById(req.params.id);
+      if (!channel) {
+        return res.status(404).json({ message: 'Canal não encontrado' });
+      }
+
+      const evolutionClient = new EvolutionAPIClient({
+        apiUrl: channel.apiUrl,
+        apiKey: channel.apiKey,
+      });
+
+      const result = await evolutionClient.connectInstance(channel.instanceId);
+      
+      // Update channel with latest info
+      await storage.updateChannel(channel.id, {
+        config: {
+          ...channel.config,
+          qrCode: result.qrcode?.base64,
+          connectionStatus: result.status || 'connecting',
+        },
+      } as any);
+
+      res.json({
+        message: 'Reconexão iniciada',
+        qrCode: result.qrcode?.base64,
+        status: result.status,
+      });
+    } catch (error: any) {
+      console.error('Error reconnecting channel:', error);
+      res.status(500).json({ message: error.message || 'Erro ao reconectar canal' });
+    }
+  });
+
+  // Logout/disconnect a channel instance
+  app.post('/api/channels/:id/logout', requireRole('admin'), async (req, res) => {
+    try {
+      const channel = await storage.getChannelById(req.params.id);
+      if (!channel) {
+        return res.status(404).json({ message: 'Canal não encontrado' });
+      }
+
+      const evolutionClient = new EvolutionAPIClient({
+        apiUrl: channel.apiUrl,
+        apiKey: channel.apiKey,
+      });
+
+      // Attempt to logout from Evolution API first
+      try {
+        await evolutionClient.logoutInstance(channel.instanceId);
+      } catch (evolutionError: any) {
+        console.error('Error logging out from Evolution API:', evolutionError.message);
+        // If Evolution logout fails, don't clear local state - return error
+        return res.status(500).json({
+          message: `Erro ao desconectar do EvolutionAPI: ${evolutionError.message}`,
+          hint: 'A instância pode já estar desconectada ou o servidor Evolution está inacessível.',
+        });
+      }
+      
+      // Only clear local state if Evolution logout succeeded
+      await storage.updateChannel(channel.id, {
+        isActive: false,
+        config: {
+          connectionStatus: 'disconnected',
+          qrCode: undefined,
+          phoneNumber: undefined,
+          profileName: undefined,
+          profilePictureUrl: undefined,
+          webhookConfigured: false,
+        },
+      } as any);
+
+      res.json({ message: 'Canal desconectado com sucesso' });
+    } catch (error: any) {
+      console.error('Error logging out channel:', error);
+      res.status(500).json({ message: error.message || 'Erro ao desconectar canal' });
     }
   });
 

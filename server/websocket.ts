@@ -117,7 +117,7 @@ export class WebSocketManager {
       const { conversationId, activity, otherParticipantId } = message.payload;
       if (ws.userId && otherParticipantId && conversationId) {
         // Security: Verify both users belong to the same conversation
-        storage.getConversationById(conversationId).then((conversation) => {
+        storage.getConversation(conversationId).then((conversation: any) => {
           if (!conversation) return;
           
           // Check if both sender and recipient are participants
@@ -138,7 +138,7 @@ export class WebSocketManager {
               activity, // 'typing' | 'recording' | 'uploading' | null
             }
           });
-        }).catch((err) => {
+        }).catch((err: any) => {
           console.error('Error validating conversation participants for activity:', err);
         });
       }
