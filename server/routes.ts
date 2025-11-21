@@ -2083,6 +2083,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               triggerWebhook('contact.created', clientWithoutPassword);
             }
 
+            // Safety check for client
+            if (!client) {
+              console.error('[Evolution API] Client is undefined after creation/update');
+              return res.json({ success: true });
+            }
+
             // Find or create conversation for this Evolution channel
             const conversations = await storage.getConversations(client.id);
             let conversation = conversations.find(c => 
