@@ -128,4 +128,31 @@ export class EvolutionAPIClient {
       throw new Error(`Erro ao desconectar instância: ${error.response?.data?.message || error.message}`);
     }
   }
+
+  async fetchChats(instanceName: string): Promise<any[]> {
+    try {
+      const response = await this.client.get(`/chat/fetchChats/${instanceName}`);
+      return response.data || [];
+    } catch (error: any) {
+      console.error('[EvolutionAPI] Error fetching chats:', error.response?.data || error.message);
+      return [];
+    }
+  }
+
+  async fetchMessages(instanceName: string, chatId: string, limit: number = 50): Promise<any[]> {
+    try {
+      const response = await this.client.post(`/chat/findMessages/${instanceName}`, {
+        where: {
+          key: {
+            remoteJid: chatId,
+          },
+        },
+        limit,
+      });
+      return response.data?.messages || [];
+    } catch (error: any) {
+      console.error('[EvolutionAPI] Error fetching messages:', error.response?.data || error.message);
+      return [];
+    }
+  }
 }

@@ -100,6 +100,7 @@ export interface IStorage {
   // Channel operations
   getChannels(): Promise<ChannelWithCreator[]>;
   getChannelById(id: string): Promise<ChannelWithCreator | undefined>;
+  getChannelByInstanceId(instanceId: string): Promise<Channel | undefined>;
   createChannel(channel: InsertChannel): Promise<Channel>;
   updateChannel(id: string, data: Partial<Channel>): Promise<Channel | undefined>;
   deleteChannel(id: string): Promise<boolean>;
@@ -592,6 +593,10 @@ export class MemStorage implements IStorage {
       ...channel,
       creator: creator!,
     };
+  }
+
+  async getChannelByInstanceId(instanceId: string): Promise<Channel | undefined> {
+    return Array.from(this.channels.values()).find(c => c.instanceId === instanceId);
   }
 
   async createChannel(channelData: InsertChannel): Promise<Channel> {
@@ -1159,6 +1164,11 @@ export class DatabaseStorage implements IStorage {
       ...channel,
       creator: creator!,
     };
+  }
+
+  async getChannelByInstanceId(instanceId: string): Promise<Channel | undefined> {
+    const results = await db.select().from(channels).where(eq(channels.instanceId, instanceId));
+    return results.length > 0 ? results[0] : undefined;
   }
 
   async createChannel(channelData: InsertChannel): Promise<Channel> {

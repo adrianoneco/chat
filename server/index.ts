@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { initializeEvolutionInstance } from "./evolution-init";
+import { storage } from "./storage";
 
 const app = express();
 
@@ -75,7 +77,20 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
+    
+    if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE_NAME) {
+      try {
+        await initializeEvolutionInstance(storage, {
+          apiUrl: process.env.EVOLUTION_API_URL,
+          apiKey: process.env.EVOLUTION_API_KEY,
+          instanceName: process.env.EVOLUTION_INSTANCE_NAME,
+          instanceNumber: process.env.EVOLUTION_INSTANCE_NUMBER,
+        });
+      } catch (error: any) {
+        console.error('[Server] Evolution initialization failed:', error.message);
+      }
+    }
   });
 })();
