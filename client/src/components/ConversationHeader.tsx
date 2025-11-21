@@ -159,94 +159,96 @@ export function ConversationHeader({
         </div>
 
         {/* Right side: Action buttons */}
-        <div className="flex items-center gap-1">
-          {onVoiceCall && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={onVoiceCall}
-              className="h-9 w-9"
-              title="Chamada de voz"
-            >
-              <Phone className="h-5 w-5" />
-            </Button>
-          )}
-          {onVideoCall && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={onVideoCall}
-              className="h-9 w-9"
-              title="Chamada de vídeo"
-            >
-              <Video className="h-5 w-5" />
-            </Button>
-          )}
-          {onScreenShare && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={onScreenShare}
-              className="h-9 w-9"
-              title="Compartilhar tela"
-            >
-              <MonitorUp className="h-5 w-5" />
-            </Button>
-          )}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+        {currentUser?.role !== 'client' && (
+          <div className="flex items-center gap-1">
+            {onVoiceCall && (
               <Button
                 size="icon"
                 variant="ghost"
+                onClick={onVoiceCall}
                 className="h-9 w-9"
+                title="Chamada de voz"
               >
-                <MoreVertical className="h-5 w-5" />
+                <Phone className="h-5 w-5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {conversation.status === "pending" && onStartConversation && (
-                <DropdownMenuItem onClick={onStartConversation}>
-                  <Play className="mr-2 h-4 w-4" />
-                  Iniciar Conversa
-                </DropdownMenuItem>
-              )}
-              {conversation.status === "attending" && onCloseConversation && (
-                <DropdownMenuItem onClick={onCloseConversation}>
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Fechar Conversa
-                </DropdownMenuItem>
-              )}
-              {conversation.status === "closed" && onReopenConversation && (
-                <DropdownMenuItem onClick={onReopenConversation}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Reabrir Conversa
-                </DropdownMenuItem>
-              )}
-              {onTransferConversation && (
-                <DropdownMenuItem onClick={onTransferConversation}>
-                  <Users className="mr-2 h-4 w-4" />
-                  Transferir
-                </DropdownMenuItem>
-              )}
-              {onManageTags && (
-                <DropdownMenuItem onClick={onManageTags}>
-                  <Tag className="mr-2 h-4 w-4" />
-                  Tags
-                </DropdownMenuItem>
-              )}
-              {onDeleteConversation && (
-                <DropdownMenuItem 
-                  onClick={onDeleteConversation}
-                  className="text-destructive focus:text-destructive"
+            )}
+            {onVideoCall && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={onVideoCall}
+                className="h-9 w-9"
+                title="Chamada de vídeo"
+              >
+                <Video className="h-5 w-5" />
+              </Button>
+            )}
+            {onScreenShare && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={onScreenShare}
+                className="h-9 w-9"
+                title="Compartilhar tela"
+              >
+                <MonitorUp className="h-5 w-5" />
+              </Button>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Apagar
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {conversation.status === "pending" && onStartConversation && (
+                  <DropdownMenuItem onClick={onStartConversation}>
+                    <Play className="mr-2 h-4 w-4" />
+                    Iniciar Conversa
+                  </DropdownMenuItem>
+                )}
+                {conversation.status === "attending" && onCloseConversation && (
+                  <DropdownMenuItem onClick={onCloseConversation}>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Fechar Conversa
+                  </DropdownMenuItem>
+                )}
+                {conversation.status === "closed" && onReopenConversation && (
+                  <DropdownMenuItem onClick={onReopenConversation}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reabrir Conversa
+                  </DropdownMenuItem>
+                )}
+                {onTransferConversation && (
+                  <DropdownMenuItem onClick={onTransferConversation}>
+                    <Users className="mr-2 h-4 w-4" />
+                    Transferir
+                  </DropdownMenuItem>
+                )}
+                {onManageTags && (
+                  <DropdownMenuItem onClick={onManageTags}>
+                    <Tag className="mr-2 h-4 w-4" />
+                    Tags
+                  </DropdownMenuItem>
+                )}
+                {onDeleteConversation && (
+                  <DropdownMenuItem 
+                    onClick={onDeleteConversation}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Apagar
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
     </div>
   );

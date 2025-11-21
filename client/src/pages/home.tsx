@@ -680,9 +680,9 @@ export default function Home() {
                   messages={messages} 
                   currentUser={user}
                   onReply={handleReply}
-                  onForward={handleForward}
+                  onForward={user.role !== 'client' ? handleForward : undefined}
                   onReact={handleReact}
-                  onDelete={handleDeleteMessage}
+                  onDelete={user.role !== 'client' ? handleDeleteMessage : undefined}
                 />
                 <MessageInput
                   onSendMessage={handleSendMessage}
@@ -731,28 +731,32 @@ export default function Home() {
         previousConversations={2}
       />
 
-      <ForwardMessageModal
-        open={forwardModalOpen}
-        onOpenChange={handleForwardModalClose}
-        conversations={conversations.filter(c => c.id !== messageToForward?.conversationId)}
-        onForward={handleForwardToConversations}
-      />
-      <TransferConversationModal
-        open={transferModalOpen}
-        onOpenChange={(v) => setTransferModalOpen(v)}
-        onTransfer={handlePerformTransfer}
-      />
-      <NewConversationModal
-        open={newConversationModalOpen}
-        onOpenChange={setNewConversationModalOpen}
-        onSelectContact={handleSelectContact}
-      />
-      {selectedConversationId && (
-        <ManageTagsModal
-          conversationId={selectedConversationId}
-          isOpen={tagsModalOpen}
-          onClose={() => setTagsModalOpen(false)}
-        />
+      {user?.role !== 'client' && (
+        <>
+          <ForwardMessageModal
+            open={forwardModalOpen}
+            onOpenChange={handleForwardModalClose}
+            conversations={conversations.filter(c => c.id !== messageToForward?.conversationId)}
+            onForward={handleForwardToConversations}
+          />
+          <TransferConversationModal
+            open={transferModalOpen}
+            onOpenChange={(v) => setTransferModalOpen(v)}
+            onTransfer={handlePerformTransfer}
+          />
+          <NewConversationModal
+            open={newConversationModalOpen}
+            onOpenChange={setNewConversationModalOpen}
+            onSelectContact={handleSelectContact}
+          />
+          {selectedConversationId && (
+            <ManageTagsModal
+              conversationId={selectedConversationId}
+              isOpen={tagsModalOpen}
+              onClose={() => setTagsModalOpen(false)}
+            />
+          )}
+        </>
       )}
     </div>
   );

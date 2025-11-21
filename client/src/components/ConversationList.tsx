@@ -135,10 +135,12 @@ export function ConversationList({
               data-testid="input-search-conversations"
             />
           </div>
-          <Button onClick={onNewConversation} className="gap-2 flex-shrink-0" data-testid="button-new-conversation">
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Nova</span>
-          </Button>
+          {currentUser?.role !== 'client' && (
+            <Button onClick={onNewConversation} className="gap-2 flex-shrink-0" data-testid="button-new-conversation">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Nova</span>
+            </Button>
+          )}
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
@@ -181,10 +183,70 @@ export function ConversationList({
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {filteredConversations.map((conversation) => (
-              <ContextMenu key={conversation.id}>
-                <ContextMenuTrigger asChild>
+            {filteredConversations.map((conversation) => {
+              const conversationContent = (
+                <div className="relative flex-shrink-0">
+                  <Avatar className="w-12 h-12">
+                    <AvatarImage src={getDisplayAvatar(conversation)} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {getDisplayInitials(conversation)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div
+                    className={cn(
+                      "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background",
+                      getStatusDotColor(conversation.status)
+                    )}
+                  />
+                </div>
+              );
+
+              const conversationDetails = (
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <h3 className="font-medium text-sm truncate" data-testid={`text-conversation-name-${conversation.id}`}>
+                      {getDisplayName(conversation)}
+                    </h3>
+                    {conversation.lastMessageAt && (
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {formatDistanceToNow(new Date(conversation.lastMessageAt), {
+                          addSuffix: true,
+                          locale: ptBR,
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {conversation.lastMessage || "Sem mensagens ainda"}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-muted-foreground">#{conversation.protocolNumber}</span>
+                    {conversation.tags && conversation.tags.length > 0 && (
+                      <>
+                        {conversation.tags.slice(0, 2).map((tag) => (
+                          <Badge
+                            key={tag.id}
+                            style={{ backgroundColor: tag.color }}
+                            className="text-white text-xs px-1.5 py-0 h-auto"
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
+                        {conversation.tags.length > 2 && (
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0 h-auto">
+                            +{conversation.tags.length - 2}
+                          </Badge>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+
+              if (currentUser?.role === 'client') {
+                return (
                   <button
+                    key={conversation.id}
                     onClick={() => onSelectConversation(conversation.id)}
                     className={cn(
                       "w-full p-4 flex items-center gap-3 hover-elevate active-elevate-2 transition-colors text-left",
@@ -192,99 +254,65 @@ export function ConversationList({
                     )}
                     data-testid={`conversation-item-${conversation.id}`}
                   >
-                    <div className="relative flex-shrink-0">
-                      <Avatar className="w-12 h-12">
-                        <AvatarImage src={getDisplayAvatar(conversation)} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                          {getDisplayInitials(conversation)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div
-                        className={cn(
-                          "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background",
-                          getStatusDotColor(conversation.status)
-                        )}
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <h3 className="font-medium text-sm truncate" data-testid={`text-conversation-name-${conversation.id}`}>
-                          {getDisplayName(conversation)}
-                        </h3>
-                        {conversation.lastMessageAt && (
-                          <span className="text-xs text-muted-foreground flex-shrink-0">
-                            {formatDistanceToNow(new Date(conversation.lastMessageAt), {
-                              addSuffix: true,
-                              locale: ptBR,
-                            })}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {conversation.lastMessage || "Sem mensagens ainda"}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-xs text-muted-foreground">#{conversation.protocolNumber}</span>
-                        {conversation.tags && conversation.tags.length > 0 && (
-                          <>
-                            {conversation.tags.slice(0, 2).map((tag) => (
-                              <Badge
-                                key={tag.id}
-                                style={{ backgroundColor: tag.color }}
-                                className="text-white text-xs px-1.5 py-0 h-auto"
-                              >
-                                {tag.name}
-                              </Badge>
-                            ))}
-                            {conversation.tags.length > 2 && (
-                              <Badge variant="secondary" className="text-xs px-1.5 py-0 h-auto">
-                                +{conversation.tags.length - 2}
-                              </Badge>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
+                    {conversationContent}
+                    {conversationDetails}
                   </button>
-                </ContextMenuTrigger>
-                <ContextMenuContent className="w-48">
-                  {conversation.status === "pending" && onStartConversation && (
-                    <ContextMenuItem onClick={() => onStartConversation(conversation.id)}>
-                      <Play className="mr-2 h-4 w-4" />
-                      Iniciar Conversa
-                    </ContextMenuItem>
-                  )}
-                  {conversation.status === "attending" && onCloseConversation && (
-                    <ContextMenuItem onClick={() => onCloseConversation(conversation.id)}>
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Fechar Conversa
-                    </ContextMenuItem>
-                  )}
-                  {conversation.status === "closed" && onReopenConversation && (
-                    <ContextMenuItem onClick={() => onReopenConversation(conversation.id)}>
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Reabrir Conversa
-                    </ContextMenuItem>
-                  )}
-                  {onTransferConversation && (
-                    <ContextMenuItem onClick={() => onTransferConversation(conversation.id)}>
-                      <Users className="mr-2 h-4 w-4" />
-                      Transferir
-                    </ContextMenuItem>
-                  )}
-                  {onDeleteConversation && (
-                    <ContextMenuItem 
-                      onClick={() => onDeleteConversation(conversation.id)}
-                      className="text-destructive focus:text-destructive"
+                );
+              }
+
+              return (
+                <ContextMenu key={conversation.id}>
+                  <ContextMenuTrigger asChild>
+                    <button
+                      onClick={() => onSelectConversation(conversation.id)}
+                      className={cn(
+                        "w-full p-4 flex items-center gap-3 hover-elevate active-elevate-2 transition-colors text-left",
+                        selectedId === conversation.id && "bg-accent"
+                      )}
+                      data-testid={`conversation-item-${conversation.id}`}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Apagar
-                    </ContextMenuItem>
-                  )}
-                </ContextMenuContent>
-              </ContextMenu>
-            ))}
+                      {conversationContent}
+                      {conversationDetails}
+                    </button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="w-48">
+                    {conversation.status === "pending" && onStartConversation && (
+                      <ContextMenuItem onClick={() => onStartConversation(conversation.id)}>
+                        <Play className="mr-2 h-4 w-4" />
+                        Iniciar Conversa
+                      </ContextMenuItem>
+                    )}
+                    {conversation.status === "attending" && onCloseConversation && (
+                      <ContextMenuItem onClick={() => onCloseConversation(conversation.id)}>
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Fechar Conversa
+                      </ContextMenuItem>
+                    )}
+                    {conversation.status === "closed" && onReopenConversation && (
+                      <ContextMenuItem onClick={() => onReopenConversation(conversation.id)}>
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Reabrir Conversa
+                      </ContextMenuItem>
+                    )}
+                    {onTransferConversation && (
+                      <ContextMenuItem onClick={() => onTransferConversation(conversation.id)}>
+                        <Users className="mr-2 h-4 w-4" />
+                        Transferir
+                      </ContextMenuItem>
+                    )}
+                    {onDeleteConversation && (
+                      <ContextMenuItem 
+                        onClick={() => onDeleteConversation(conversation.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Apagar
+                      </ContextMenuItem>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
+              );
+            })}
           </div>
         )}
       </div>
