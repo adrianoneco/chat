@@ -140,11 +140,16 @@ export default function Home() {
   // WebSocket listeners for real-time updates
   const handleWSNewConversation = useCallback((conversation: ConversationWithUsers) => {
     queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    
+    const otherParticipantName = user && user.id === conversation.clientId
+      ? (conversation.attendant ? `${conversation.attendant.firstName} ${conversation.attendant.lastName}` : "Sem atendente")
+      : `${conversation.client.firstName} ${conversation.client.lastName}`;
+    
     toast({
       title: "Nova conversa",
-      description: `Conversa com ${conversation.client.firstName} foi criada`,
+      description: `Conversa com ${otherParticipantName} foi criada`,
     });
-  }, [toast]);
+  }, [toast, user]);
 
   const handleWSConversationUpdate = useCallback((conversation: ConversationWithUsers) => {
     queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
@@ -364,8 +369,9 @@ export default function Home() {
       }
       return res.json();
     },
-    onSuccess: (conversation) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    onSuccess: async (conversation) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      setNewConversationModalOpen(false);
       setSelectedConversationId(conversation.id);
       toast({
         title: "Conversa criada!",
@@ -640,6 +646,7 @@ export default function Home() {
             ) : (
               <ConversationList
                 conversations={conversations}
+                currentUser={user}
                 selectedId={selectedConversationId}
                 onSelectConversation={setSelectedConversationId}
                 onNewConversation={handleNewConversation}
@@ -657,6 +664,7 @@ export default function Home() {
               <>
                 <ConversationHeader
                   conversation={selectedConversation}
+                  currentUser={user}
                   otherUserActivity={otherUserActivity}
                   onVoiceCall={() => toast({ title: "Chamada de voz", description: "Funcionalidade em desenvolvimento" })}
                   onVideoCall={() => toast({ title: "Chamada de vídeo", description: "Funcionalidade em desenvolvimento" })}

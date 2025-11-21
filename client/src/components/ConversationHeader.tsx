@@ -8,12 +8,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { ConversationWithUsers } from "@shared/schema";
+import type { ConversationWithUsers, User } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface ConversationHeaderProps {
   conversation: ConversationWithUsers;
+  currentUser?: User;
   otherUserActivity?: 'typing' | 'recording' | 'uploading' | null;
   onVoiceCall?: () => void;
   onVideoCall?: () => void;
@@ -28,6 +29,7 @@ interface ConversationHeaderProps {
 
 export function ConversationHeader({
   conversation,
+  currentUser,
   otherUserActivity,
   onVoiceCall,
   onVideoCall,
@@ -39,6 +41,34 @@ export function ConversationHeader({
   onDeleteConversation,
   onManageTags,
 }: ConversationHeaderProps) {
+  const getOtherParticipant = () => {
+    if (!currentUser) return conversation.client;
+    
+    if (currentUser.id === conversation.clientId) {
+      return conversation.attendant || null;
+    }
+    return conversation.client;
+  };
+
+  const getDisplayName = () => {
+    const participant = getOtherParticipant();
+    if (!participant) return "Sem atendente";
+    return `${participant.firstName || ""} ${participant.lastName || ""}`.trim() || "Usuário";
+  };
+
+  const getDisplayAvatar = () => {
+    const participant = getOtherParticipant();
+    return participant?.profileImageUrl || undefined;
+  };
+
+  const getDisplayInitials = () => {
+    const participant = getOtherParticipant();
+    if (!participant) return "SA";
+    const firstInitial = participant.firstName?.charAt(0) || "";
+    const lastInitial = participant.lastName?.charAt(0) || "";
+    return firstInitial + lastInitial || "U";
+  };
+
   const getStatusDotColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -105,10 +135,9 @@ export function ConversationHeader({
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="relative flex-shrink-0">
             <Avatar className="w-10 h-10">
-              <AvatarImage src={conversation.client.profileImageUrl || undefined} />
+              <AvatarImage src={getDisplayAvatar()} />
               <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                {conversation.client.firstName?.charAt(0) || "C"}
-                {conversation.client.lastName?.charAt(0) || ""}
+                {getDisplayInitials()}
               </AvatarFallback>
             </Avatar>
             <div
@@ -121,7 +150,7 @@ export function ConversationHeader({
 
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold truncate">
-              {conversation.client.firstName} {conversation.client.lastName}
+              {getDisplayName()}
             </h2>
             <p className="text-xs text-muted-foreground truncate">
               {getLastSeenText()}
