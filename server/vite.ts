@@ -23,6 +23,10 @@ export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: false,
+    watch: {
+      usePolling: true,
+      interval: 1000,
+    },
     allowedHosts: true as const,
   };
 
