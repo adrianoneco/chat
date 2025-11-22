@@ -3,11 +3,14 @@
 ## Visão Geral
 ChatApp é um sistema completo de atendimento via chat com autenticação multi-role (attendant, client, admin) construído com React, Vite, TypeScript, TailwindCSS e Drizzle ORM.
 
+## Histórico de Mudanças
+- **22/11/2024**: Removida completamente a integração com EvolutionAPI e WhatsApp. Todas as funcionalidades de canais externos foram removidas. O sistema agora opera exclusivamente com conversas web e telegram nativas.
+
 ## Arquitetura
 - **Frontend**: React 18 + Vite + TypeScript + TailwindCSS + Shadcn UI
 - **Backend**: Express.js + DrizzleORM + PostgreSQL
-- **Autenticação**: Replit Auth com suporte a roles
-- **Estado**: React Query + Zustand para preferências locais
+- **Autenticação**: Session-based com suporte a roles (attendant, client, admin)
+- **Estado**: React Query para cache de dados
 
 ## Funcionalidades Principais
 
@@ -75,3 +78,14 @@ ChatApp é um sistema completo de atendimento via chat com autenticação multi-
 - WebSocket para chat em tempo real
 - Upload de áudio/vídeo/imagens
 - Sessões com express-session e MemoryStore
+- Sistema de tags para conversas
+- Mensagens prontas (ready messages)
+- Webhooks para eventos do sistema
+- Campanhas de envio
+- Agentes de IA
+
+## Integrações Removidas
+- EvolutionAPI (WhatsApp) - removida em 22/11/2024
+  - Tabela channels deletada
+  - Campo isWhatsAppContact removido dos usuários
+  - Todas as rotas e lógica de integração removidas
