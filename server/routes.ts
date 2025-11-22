@@ -17,11 +17,6 @@ import { correctText, generateReadyMessage } from "./groq";
 import { sendPasswordResetEmail } from "./email";
 import { initializeWebSocket, wsManager } from "./websocket";
 
-// Helper function to generate a random secure password for WhatsApp contacts
-// These contacts cannot login anyway, so the password is just for data integrity
-function generateSecureRandomPassword(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
 import {
   loginSchema,
   signupSchema,
@@ -119,7 +114,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastName: validatedData.lastName,
         role: 'client',
         sidebarCollapsed: 'false',
-        isWhatsAppContact: false,
         phoneNumber: null,
         profileImageUrl: null,
         resetToken: null,
@@ -151,11 +145,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const user = await storage.getUserByEmail(normalizedEmail);
       if (!user) {
-        return res.status(401).json({ message: 'Email ou senha inválidos' });
-      }
-
-      // Security: Prevent WhatsApp contacts from logging in
-      if (user.isWhatsAppContact) {
         return res.status(401).json({ message: 'Email ou senha inválidos' });
       }
 
@@ -296,7 +285,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profileImageUrl: profileImageUrl || null,
         role: 'attendant',
         sidebarCollapsed: 'false',
-        isWhatsAppContact: false,
         phoneNumber: null,
         resetToken: null,
         resetTokenExpiry: null,
@@ -396,7 +384,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profileImageUrl: profileImageUrl || null,
         role: 'client',
         sidebarCollapsed: 'false',
-        isWhatsAppContact: false,
         phoneNumber: null,
         resetToken: null,
         resetTokenExpiry: null,
@@ -1091,7 +1078,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Silva',
           role: 'attendant' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
@@ -1104,7 +1090,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Santos',
           role: 'attendant' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
@@ -1117,7 +1102,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Oliveira',
           role: 'attendant' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
@@ -1134,7 +1118,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Pereira',
           role: 'client' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
@@ -1147,7 +1130,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Costa',
           role: 'client' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
@@ -1160,7 +1142,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Alves',
           role: 'client' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
@@ -1173,7 +1154,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Souza',
           role: 'client' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,
@@ -1186,7 +1166,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: 'Lima',
           role: 'client' as const,
           sidebarCollapsed: 'false',
-          isWhatsAppContact: false,
           phoneNumber: null,
           profileImageUrl: null,
           resetToken: null,

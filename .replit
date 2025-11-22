@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20", "web", "postgresql-16"]
 run = "dotenv -e./.env -- npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -24,16 +24,16 @@ localPort = 35253
 externalPort = 4200
 
 [[ports]]
+localPort = 35981
+externalPort = 8081
+
+[[ports]]
 localPort = 36835
 externalPort = 6000
 
 [[ports]]
 localPort = 39021
 externalPort = 8000
-
-[[ports]]
-localPort = 39033
-externalPort = 8081
 
 [[ports]]
 localPort = 39349

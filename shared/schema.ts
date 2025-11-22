@@ -36,7 +36,6 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role").$type<UserRole>().notNull().default("client"),
   sidebarCollapsed: varchar("sidebar_collapsed").notNull().default("false"),
-  isWhatsAppContact: boolean("is_whatsapp_contact").notNull().default(false),
   phoneNumber: varchar("phone_number"),
   resetToken: varchar("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),

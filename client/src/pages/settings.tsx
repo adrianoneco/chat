@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
-import { Settings as SettingsIcon, Webhook, MessageCircle, Tag, MessageSquareText, LayoutDashboard } from "lucide-react";
+import { Settings as SettingsIcon, Webhook, Tag, MessageSquareText, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import WebhooksSettings from "./webhooks-settings";
-import ChannelsSettings from "./channels-settings";
 import TagsSettings from "./tags-settings";
 import ReadyMessagesSettings from "./ready-messages-settings";
 import GeneralSettings from "./general-settings";
@@ -32,11 +31,6 @@ export default function Settings() {
       title: "Webhooks",
       path: "/settings/webhooks",
       icon: Webhook,
-    },
-    {
-      title: "Canais",
-      path: "/settings/channels",
-      icon: MessageCircle,
     },
   ];
 
@@ -76,7 +70,6 @@ export default function Settings() {
           <Route path="/settings/tags" component={TagsSettings} />
           <Route path="/settings/ready-messages" component={ReadyMessagesSettings} />
           <Route path="/settings/webhooks" component={WebhooksSettings} />
-          <Route path="/settings/channels" component={ChannelsSettings} />
           <Route>
             <div className="p-8 text-center text-muted-foreground">
               Selecione uma opção de configuração
