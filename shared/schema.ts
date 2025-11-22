@@ -84,7 +84,7 @@ export const conversationModes = ["attendant", "ia-agent"] as const;
 export type ConversationMode = typeof conversationModes[number];
 
 // Conversation channels
-export const conversationChannels = ["web", "evolution", "telegram"] as const;
+export const conversationChannels = ["web", "telegram"] as const;
 export type ConversationChannel = typeof conversationChannels[number];
 
 // Conversations table
@@ -404,46 +404,6 @@ export type UpdateAiAgent = z.infer<typeof updateAiAgentSchema>;
 export type AiAgent = typeof aiAgents.$inferSelect;
 
 export type AiAgentWithCreator = AiAgent & {
-  creator: User;
-};
-
-// Channels table for WhatsApp integration
-export const channels = pgTable("channels", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name").notNull(),
-  type: varchar("type").notNull().default("whatsapp"),
-  isActive: boolean("is_active").notNull().default(false),
-  apiUrl: varchar("api_url").notNull(),
-  apiKey: varchar("api_key").notNull(),
-  instanceId: varchar("instance_id").notNull(),
-  webhookUrl: varchar("webhook_url"),
-  config: jsonb("config").$type<{
-    qrCode?: string;
-    connectionStatus?: string;
-    phoneNumber?: string;
-  }>(),
-  createdBy: varchar("created_by").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertChannelSchema = createInsertSchema(channels).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  createdBy: true,
-}).partial({
-  webhookUrl: true,
-  config: true,
-});
-
-export const updateChannelSchema = insertChannelSchema.partial();
-
-export type InsertChannel = z.infer<typeof insertChannelSchema>;
-export type UpdateChannel = z.infer<typeof updateChannelSchema>;
-export type Channel = typeof channels.$inferSelect;
-
-export type ChannelWithCreator = Channel & {
   creator: User;
 };
 
