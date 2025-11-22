@@ -138,16 +138,18 @@ async function syncMessagesAndContacts(
     console.log(`[Evolution Sync] Found ${chats.length} chats to sync`);
     
     for (const chat of chats.slice(0, 10)) {
-      // Skip chats without valid ID
-      if (!chat || !chat.id || typeof chat.id !== 'string') {
+      // Use remoteJid when id is null (Evolution API behavior)
+      const chatId = chat?.id || chat?.remoteJid;
+      
+      if (!chat || !chatId || typeof chatId !== 'string') {
         console.warn('[Evolution Sync] Skipping chat with invalid ID:', chat);
         continue;
       }
 
-      const phoneNumber = normalizePhoneNumber(chat.id);
+      const phoneNumber = normalizePhoneNumber(chatId);
       
       if (!phoneNumber) {
-        console.warn('[Evolution Sync] Could not normalize phone number from:', chat.id);
+        console.warn('[Evolution Sync] Could not normalize phone number from:', chatId);
         continue;
       }
       
